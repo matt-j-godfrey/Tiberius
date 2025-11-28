@@ -532,7 +532,7 @@ else:
 
 if step_func_used:
     d["step1"] = tmgp.Param(1)
-    d["step2"] = tmgp.Param(1)
+    # d["step2"] = tmgp.Param(1)
     if white_light_fit:
         d["breakpoint"] = tmgp.Param(float(input_dict["step_breakpoint"]))
     else:
@@ -645,7 +645,7 @@ if optimise_model or clip_outliers and not median_clip:
 
     if step_func_used:
         d_clip["step1"] = tmgp.Param(1)
-        d_clip["step2"] = tmgp.Param(1)
+        # d_clip["step2"] = tmgp.Param(1)
         if white_light_fit:
             d_clip["breakpoint"] = tmgp.Param(float(input_dict["step_breakpoint"]))
         else:

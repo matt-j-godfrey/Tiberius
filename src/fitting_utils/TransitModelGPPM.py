@@ -7,8 +7,8 @@ import george
 from george import kernels
 from scipy import optimize,stats
 import matplotlib.pyplot as plt
-from Tiberius.src.fitting_utils import parametric_fitting_functions as pf
-from Tiberius.src.fitting_utils import plotting_utils as pu
+from fitting_utils import parametric_fitting_functions as pf
+from fitting_utils import plotting_utils as pu
 
 class TransitModelGPPM(object):
     def __init__(self,pars_dict,systematics_model_inputs,kernel_classes,flux_error,time_array,kernel_priors=None,wn_kernel=True,use_kipping=False,ld_std_priors=None,polynomial_orders=None,ld_law="quadratic",exp_ramp=False,exp_ramp_components=0,step_func=False):
@@ -189,9 +189,11 @@ class TransitModelGPPM(object):
 
         else:
             # Need to convert from q1 and q2 to u1 and u2
+            # print('(1) Converting q1 and q2 back to u1 and u2...')
             u1 = 2*np.sqrt(self.pars['u1'].currVal)*self.pars['u2'].currVal
             u2 = np.sqrt(self.pars['u1'].currVal)*(1-2*self.pars['u2'].currVal)
             gamma = [u1,u2]
+            #print('MG: u1 and u2: ',gamma)
 
         self.batman_params.u = gamma                #limb darkening coefficients [u1, u2, ..,]
 
@@ -256,11 +258,15 @@ class TransitModelGPPM(object):
 
         else:
             # Need to convert from q1 and q2 to u1 and u2
+            #print('(2) Converting q1 and q2 back to u1 and u2...')
             u1 = 2*np.sqrt(self.pars['u1'].currVal)*self.pars['u2'].currVal
             u2 = np.sqrt(self.pars['u1'].currVal)*(1-2*self.pars['u2'].currVal)
             gamma = [u1,u2]
+            #print('MG: u1 and u2: ',gamma)
+
 
         self.batman_params.u = gamma                #limb darkening coefficients [u1, u2]
+        #print('time: ',time.shape,'. self.time_array: ',self.time_array.shape)
 
         if time is not None:
             if np.any(time != self.time_array): # optionally recalculating batman model if the time array has changed
@@ -268,7 +274,8 @@ class TransitModelGPPM(object):
 
         transitShape = self.batman_model.light_curve(self.batman_params)
         model = transitShape
-
+        #print('Sum: ',np.sum(model))
+        
         if self.poly_used: # then we're using a polynomial to fit systematics
             red_noise_poly_model = self.red_noise_poly(time,sys_model_inputs)
             model *= red_noise_poly_model
@@ -402,6 +409,7 @@ class TransitModelGPPM(object):
                 # period prior
                 if not self.period_fixed:
                     if self.pars['period'].currVal < 0:
+                        #print('Returned -infinity, caused by: period')
                         return -np.inf
                     if sys_priors["period_prior"] is not None:
                         retVal += stats.norm(scale=sys_priors["period_prior"],loc=self.pars['period'].startVal).pdf(self.pars['period'].currVal)
@@ -409,6 +417,7 @@ class TransitModelGPPM(object):
                 # inclination prior
                 if not self.inc_fixed:
                     if self.pars['inc'].currVal > 90  or self.pars['inc'].currVal < self.pars['inc'].startVal - 5:
+                        #print('Returned -infinity, caused by: inc')
                         return -np.inf
                     if sys_priors["inc_prior"] is not None:
                         retVal += stats.norm(scale=sys_priors["inc_prior"],loc=self.pars['inc'].startVal).pdf(self.pars['inc'].currVal)
@@ -416,6 +425,7 @@ class TransitModelGPPM(object):
                 # a/Rs prior
                 if not self.ars_fixed:
                     if self.pars['aRs'].currVal <= 1:
+                        #print('Returned -infinity, caused by: aRs')
                         return -np.inf
                     if sys_priors["aRs_prior"] is not None:
                         retVal += stats.norm(scale=sys_priors["aRs_prior"],loc=self.pars['aRs'].startVal).pdf(self.pars['aRs'].currVal)
@@ -423,6 +433,7 @@ class TransitModelGPPM(object):
                 # ecc prior
                 if not self.ecc_fixed:
                     if self.pars['ecc'].currVal > 1 or self.pars['ecc'].currVal < 0:
+                        #print('Returned -infinity, caused by: ecc')
                         return -np.inf
                     if sys_priors["ecc_prior"] is not None:
                         retVal += stats.norm(scale=sys_priors["ecc_prior"],loc=self.pars['ecc'].startVal).pdf(self.pars['ecc'].currVal)
@@ -430,18 +441,21 @@ class TransitModelGPPM(object):
                 # omega / longitude of periastron prior
                 if not self.omega_fixed:
                     if self.pars['omega'].currVal > 360 or self.pars['ecc'].currVal < 0:
+                        #print('Returned -infinity, caused by: omega')
                         return -np.inf
                     if sys_priors["omega_prior"] is not None:
                         retVal += stats.norm(scale=sys_priors["omega_prior"],loc=self.pars['omega'].startVal).pdf(self.pars['omega'].currVal)
 
                 # t0 prior
                 if self.pars['t0'].currVal < self.pars['t0'].startVal-0.1 or self.pars['t0'].currVal > self.pars['t0'].startVal+0.1:
+                    #print('Returned -infinity, caused by: t0')
                     return -np.inf
                 if sys_priors["t0_prior"] is not None:
                     retVal += stats.norm(scale=sys_priors["t0_prior"],loc=self.pars['t0'].startVal).pdf(self.pars['t0'].currVal)
 
 
         if self.pars['k'].currVal < 0. or self.pars['k'].currVal > 0.5: # reject non-physical and non-sensical values
+            #print('Returned -infinity, caused by: k')
             return -np.inf
 
         if self.GP_used:
@@ -463,6 +477,7 @@ class TransitModelGPPM(object):
             if not self.poly_fixed:
                 for i in range(0,self.polynomial_orders.sum()+1):
                     if self.pars['c%d'%(i+1)].currVal > 10 or self.pars['c%d'%(i+1)].currVal < -10:
+                        #print('Returned -infinity, caused by: polynomial')
                         return -np.inf
 
         if self.exp_ramp_used: # priors on polynomial coefficients
@@ -492,8 +507,10 @@ class TransitModelGPPM(object):
                 u1 = self.pars['u1']
             else:
                 u1 = self.pars['u1'].currVal
+                #print('u1 = ',u1)
                 if self.ld_std_priors is not None:
                     ld_prior_value += stats.norm(scale=self.ld_std_priors['u1_prior'],loc=self.pars['u1'].startVal).pdf(u1)
+                    #print('LD_prior: ', ld_prior_value)
 
             if self.ld_law != "linear":
                 if self.fix_u2:
@@ -510,6 +527,7 @@ class TransitModelGPPM(object):
                     u3 = self.pars['u3'].currVal
                     if self.ld_std_priors is not None:
                         ld_prior_value += stats.norm(scale=self.ld_std_priors['u3_prior'],loc=self.pars['u3'].startVal).pdf(u3)
+                        #print('LD_prior: ', ld_prior_value)
 
                 if self.fix_u4:
                     u4 = self.pars['u4']
@@ -517,15 +535,22 @@ class TransitModelGPPM(object):
                     u4 = self.pars['u4'].currVal
                     if self.ld_std_priors is not None:
                         ld_prior_value += stats.norm(scale=self.ld_std_priors['u4_prior'],loc=self.pars['u4'].startVal).pdf(u4)
+                        #print('LD_prior: ', ld_prior_value)
 
             if self.ld_law == "quadratic":
                 if u1 + u2 < 1 and u1 > 0 and u1 + 2*u2 > 0:
                     retVal += ld_prior_value
                 else:
+                    ##print('Returned -infinity, caused by: quadratic LD')
+                    #print('u1 = ',u1)
+                    #print('u2 = ',u2)
+                    #print('u1 + u2 < 1, = ',u1 + u2)
+                    #print('u1 + 2*u2 > 0, = ',u1 + 2*u2)
                     return -np.inf
 
         else:
             if self.pars['u1'].currVal < 0 or self.pars['u1'].currVal > 1 or self.pars['u2'].currVal < 0 or self.pars['u2'].currVal > 1: # priors on q1 and q2 from Kipping paper
+                #print('Returned -infinity, caused by: kipping LD')
                 return -np.inf
             else:
                 if self.ld_std_priors is not None:
@@ -659,6 +684,7 @@ class TransitModelGPPM(object):
         """
         lnp = self.lnprior(sys_priors)
         if np.isfinite(lnp):
+            #print('MG: lnprior: ',lnp)  
             return lnp + self.lnlike(time,flux,flux_err,sys_model_inputs,typeII)
         else:
             return lnp
@@ -723,6 +749,7 @@ class TransitModelGPPM(object):
             resids = (flux - self.calc(time,sys_model_inputs) - mu)/flux_err
         else:
             resids = (flux - self.calc(time,sys_model_inputs))/flux_err
+            #print('MG: ChiSq: ',np.sum(resids*resids))
 
         return np.sum(resids*resids)
 
@@ -870,6 +897,8 @@ class TransitModelGPPM(object):
             kern_inputs = self.systematics_model_inputs
             evaluated_model = self.calc(time)
 
+            #print('In the function: ', np.isnan(y).any(),np.isnan(error).any(),np.isnan(kern_inputs).any(),np.isnan(evaluated_model).any())
+
         if self.GP_used:
             gp = self.construct_gp()
 
@@ -964,7 +993,10 @@ class TransitModelGPPM(object):
             if not LM_fit:
                 results = optimize.minimize(nll, p0,args=(self,y,True,time,flux_err,sys_priors,False),method='Nelder-Mead',bounds=tuple(bnds),options=dict(maxiter=1e4,disp=disp))
             else:
+                #print('Matt3333')
+                print(inspect.getsourcefile(optimize.least_squares))
                 results = optimize.least_squares(nll, p0,args=(self,y,True,time,flux_err,sys_priors,False,True),method='lm')
+                #print('Matt4')
 
             update_model(self,results.x)
 
@@ -1095,6 +1127,7 @@ def nll(p,model,y,full_model=False,x=None,e=None,sys_priors=None,typeII=False,LM
         for i in range(model.npars):
             model[i] = p[i]
         if np.isfinite(model.lnprior(sys_priors)):
+            #print('MG: nll lnprior: ',model.lnprior(sys_priors))
             if LM_fit:
                 if model.GP_used: # note: LM fit is not working 100% with GPs
                     mu, std = model.calc_gp_component(x,y,e)

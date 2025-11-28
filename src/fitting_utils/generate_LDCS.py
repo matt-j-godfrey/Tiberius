@@ -43,6 +43,7 @@ if white_light_fit:
     wavelength_centres = float(input_dict['wvl_centres'])
     wvl_bin_full_width = float(input_dict['wvl_bin_full_width'])
 else:
+    print(input_dict['wvl_centres'])
     wavelength_centres = pickle.load(open(input_dict['wvl_centres'],'rb'))
     wvl_bin_full_width = pickle.load(open(input_dict['wvl_bin_full_width'],'rb'))
 
@@ -96,17 +97,26 @@ def ld_initialise(Teff,Teff_err,logg,logg_err,Z,Z_err,wvl_centre,wvl_error,ld_un
 
     # find the maximum resolution (minimum wavelength spacing) in nm
     resolution = np.diff(wvl_centre).min()/10.
+    print('Calculated wavelength resolution: %.2f nm'%resolution)
 
     # find the maximum wavelength considered in nm
     max_wvl = wvl_centre.max()/10.
+    print('Maximum wavelength considered: %.2f nm'%max_wvl)
 
     if max_wvl > 2600:
         model_set = "visir"
+        print('model_set = visir')
     else:
+        print('model_set = optical')
         model_set = "vis"
 
-    if resolution > 5:
+    if resolution >= 3:
+        print('lowres')
         model_set += "-lowres"
+    elif resolution == 0:
+        print('iib binning - using lowres')
+        model_set += "-lowres"
+
 
     sc = LDPSetCreator(teff=(Teff,Teff_err),logg=(logg,logg_err),z=(Z,Z_err),filters=filters,dataset=model_set)#,force_download=True)
 

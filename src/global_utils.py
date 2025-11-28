@@ -20,6 +20,7 @@ def parseInput(file):
 
     for line in blob:
         ignore_comments = line.split("#")[0]
+        #print(ignore_comments)
         k,v = ignore_comments.split('=')
         input_dict[k.strip()] = v.strip().replace("\n","").replace("\t","")
 

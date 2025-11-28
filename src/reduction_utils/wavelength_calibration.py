@@ -33,6 +33,7 @@ def rebin_spec(wave, specin, wavnew):
     Returns:
     resampled_spectra - the 1D array of the resampled 1D spectrum/errors"""
 
+    
     spec = spectrum.ArraySourceSpectrum(wave=wave, flux=specin)
     f = np.ones(len(wave))
     filt = spectrum.ArraySpectralElement(wave, f, waveunits='angstrom')
@@ -261,6 +262,8 @@ def polyfit_shifts(line_positions,shifts,npoints,poly_order=3,verbose=False,refi
 
         line_positions = line_positions[keep_idx]
         shifts = shifts[keep_idx]
+        print(line_positions)
+        print(shifts)
         poly = np.poly1d(np.polyfit(line_positions,line_positions+shifts,poly_order))
         pixels = poly(range(npoints))
         residuals = line_positions+shifts-poly(line_positions)
@@ -317,6 +320,8 @@ def compute_all_shifts(ref_frame,all_frames,all_errors,line_positions,search_wid
 
     npoints = len(ref_frame)
     nfeatures = len(line_positions)
+    
+    #print('No frames: ',npoints,', No features: ',nfeatures)
 
     if ancillary_data is not None:
         resampled_dict = {}
@@ -328,6 +333,9 @@ def compute_all_shifts(ref_frame,all_frames,all_errors,line_positions,search_wid
     for i,f in enumerate(all_frames):
         shifts = compute_shifts(f,ref_frame,line_positions,search_width)
         all_shifts.append(shifts)
+        #print(shifts)
+        
+        #print(line_positions,shifts,npoints)
 
         pixel_solution = polyfit_shifts(line_positions,shifts,npoints,poly_order,False,refit_polynomial)
 
@@ -335,8 +343,16 @@ def compute_all_shifts(ref_frame,all_frames,all_errors,line_positions,search_wid
 
         # Only take the positive indices
         idx = pixel_solution > 0
+        
+        #plt.figure()
+        #plt.plot(pixel_solution)
+        #plt.xlabel("Pixel number")
+        #plt.ylabel("Remapped pixel location")
+        #plt.title(f"Frame {i}")
+        #plt.show()
 
         if resample:
+            #print('I am here: ',i)
             resampled_flux.append(rebin_spec(pixel_solution[idx],f[idx],np.arange(1,npoints+1)))
             resampled_error.append(rebin_spec(pixel_solution[idx],all_errors[i][idx],np.arange(1,npoints+1)))
 
@@ -765,6 +781,7 @@ def resample_smoothly(reference_pixel_locations,measured_shifts,input_arrays,sig
             spline = US(frames[index],measured_shifts[:,i][index],s=spline_smoothing_factor)
 
             plt.figure()
+            plt.grid()
 
             if sigma_clip_outliers > 0:
 
@@ -772,8 +789,8 @@ def resample_smoothly(reference_pixel_locations,measured_shifts,input_arrays,sig
                 keep_idx = ((spline_residuals <= sigma_clip_outliers*np.std(spline_residuals)) & (spline_residuals >= -sigma_clip_outliers*np.std(spline_residuals)))
                 spline = US(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],s=spline_smoothing_factor)
 
-                plt.plot(frames,measured_shifts[:,i],'r')
-                plt.plot(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],'k',label='measured shifts')
+                plt.plot(frames,measured_shifts[:,i],'r-o')
+                plt.plot(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],'k-o',label='measured shifts')
                 plt.plot(frames,spline(frames),label='spline',color='orange')
 
             else:

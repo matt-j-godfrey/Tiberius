@@ -146,7 +146,14 @@ nsubplots += 1
 if args.model1 is None and args.model2 is None:
     print('Not plotting white light model fit')
     plot_model = False
-    white_light = np.loadtxt('white_light.txt')
+    
+    #white_light = np.loadtxt('white_light.txt')
+    
+    try:
+        white_light = np.loadtxt('white_light.txt')
+    except:
+        white_light = np.loadtxt('../white_light.txt')
+    
     wl_flux = white_light[:,1][:am_cut]
     wl_error = white_light[:,2][:am_cut]
 
@@ -281,6 +288,7 @@ if max1 is not None:
 
 # Raw light curves
 if args.raw_lcs:
+
     ax_raw = plt.subplot(gs[panel])
 
     if exposure_times is not None:
@@ -293,8 +301,8 @@ if args.raw_lcs:
          raw_lc_2 = s2.sum(axis=1)
          ax_raw.set_ylabel('Normalised \nflux')
 
-    ax_raw.plot(time,raw_lc_1/np.median(raw_lc_1),'bx')
-    ax_raw.plot(time,raw_lc_2/np.median(raw_lc_2),'r+')
+    ax_raw.plot(time,raw_lc_1/np.nanmedian(raw_lc_1),'bx')
+    ax_raw.plot(time,raw_lc_2/np.nanmedian(raw_lc_2),'r+')
     plt.xticks(visible=False)
 
     lower_yr = ax_raw.get_ylim()[0] - 8*ax_raw.get_ylim()[0]/100.

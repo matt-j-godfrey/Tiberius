@@ -139,11 +139,10 @@ def combine_biases_2windows(bias_list,verbose=False):
                 plt.imshow(data_frame,vmin=np.median(data_frame)*0.99,vmax=np.median(data_frame)*1.01)
                 plt.colorbar()
                 if level == 1:
-	                plt.xlabel("X pixel")
-	                plt.ylabel("Y pixel")
-	            else:
-					plt.yticks(visible=False)
-
+                    plt.xlabel("X pixel")
+                    plt.ylabel("Y pixel")
+                else:
+                    plt.yticks(visible=False)
             print('File = %s ; Mean (window %d) = %f ; Shape (window %d) = %s'%(f,level,np.mean(data_frame),level,(np.shape(data_frame))))
 
         if verbose:

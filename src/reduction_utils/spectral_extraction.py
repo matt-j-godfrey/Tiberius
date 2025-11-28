@@ -13,7 +13,7 @@ import time
 import pickle
 import os
 from collections import Counter
-from Tiberius.src.global_utils import parseInput
+from global_utils import parseInput
 try:
     import astroscrappy
 except:
@@ -25,10 +25,13 @@ from astropy import units as u
 from Keck_utils import Keck_order_masking as KO
 from astropy.time import Time,TimeDelta
 
-
 # Prevent matplotlib plotting frames upside down
 plt.rcParams['image.origin'] = 'lower'
 
+try:
+    os.mkdir("./spectral_extraction_images/")
+except:
+      pass
 
 def gauss(x,amplitude,mean,std,offset):
     """A Gaussian with a fitted flux offset"""
@@ -42,10 +45,9 @@ def BIC(model,data,error,n):
     bic = chi2 + n
     return bic
 
-def find_spectral_trace(frame,guess_location,search_width,gaussian_width,trace_poly_order,trace_spline_sf,star=None,verbose=False,co_add_rows=0,instrument=None):
+def find_spectral_trace(frame,guess_location,search_width,gaussian_width,trace_poly_order,trace_spline_sf,star=None,verbose=False,co_add_rows=0,instrument=None,frame_no=0):
     """The function used to extract the location of a spectral trace either with a Gaussian or the argmax and then
     fits a nth order polynomial to these locations"""
-
 
     if "JWST" in instrument: # we need to extract only the first array since the frame is an array of (flux_frame,error_frame)
         frame = frame[0]
@@ -185,6 +187,7 @@ def find_spectral_trace(frame,guess_location,search_width,gaussian_width,trace_p
             plt.xlabel('X pixel')
             plt.ylabel('Counts at row %d'%(i+1))
             plt.legend(loc='upper left',numpoints=1)
+
             if delay == -2:
                 plt.show()
             else:
@@ -248,6 +251,7 @@ def find_spectral_trace(frame,guess_location,search_width,gaussian_width,trace_p
         plt.xlabel('X pixel')
         plt.ylabel('Y pixel')
         plt.tight_layout()
+
         if delay == -2:
             plt.show()
         else:
@@ -321,7 +325,7 @@ def find_spectral_trace(frame,guess_location,search_width,gaussian_width,trace_p
     return fitted_positions, delay, np.median(fwhm[np.isfinite(fwhm)]), np.array(gauss_std)
 
 
-def extract_trace_flux(frame,trace,aperture_width,background_offset,background_width,pre_flat_frame,poly_bg_order,am,exposure_time,verbose,star,mask,instrument,row_min,gauss_std,readout_speed,co_add_rows,rectify_frame,oversampling_factor,gain_file,readnoise_file):
+def extract_trace_flux(frame,trace,aperture_width,background_offset,background_width,pre_flat_frame,poly_bg_order,am,exposure_time,verbose,star,mask,instrument,row_min,gauss_std,readout_speed,co_add_rows,rectify_frame,oversampling_factor,gain_file,readnoise_file,frame_no=0):
     """The function used to extract the flux of a single spectral trace, using normal extraction"""
 
     if verbose:
@@ -416,6 +420,9 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
     else:
         trace = np.round(trace).astype(int)
 
+
+    # The expected scintillation noise for a given star is described by Young (1967) and Dravins et al. (1998) in units of relative flux, with the following approximation: where D is the diameter of the telescope in centimeters, χ is the airmass of the observation, tint is the exposure time in seconds, h is the altitude of the telescope in meters, and h0  8000 m is the atmospheric scale height. The constant 0.09 factor in front has units of cm s 23 12, giving the scintillation error in units of relative flux. This equation is approximate and highly reliant on the site and the strength and direction of winds in the upper atmosphere, and the exponent above the airmass term can range from 1.5 to 2.0, depending on the wind direction (Southworth et al. 2009; Osborn et al. 2011).
+    
     # W is variriable dependent on the line of sight and wind direction
     W3 = 2.0    # parallel to wind
     h0 = 8000. # atmospheric scale height
@@ -423,6 +430,7 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
     if instrument == "ACAM" or instrument == "EFOSC":
         # Scintillation calculation
         scintillation = 0.09*D**(-2./3.)*(am**W3)*np.exp(-h/h0)*(2.*exposure_time)**(-1./2.)
+
     else:
         scintillation = 0
 
@@ -515,6 +523,8 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
         plt.title('Aperture locations for star %d'%(star+1))
         plt.legend(framealpha=1)
         plt.tight_layout()
+        # if 'SAVE_FIG' in globals() and SAVE_FIG:
+        #     plt.savefig(f"spectral_extraction_images/aperture_locations_star_{star+1}_frame.pdf",dpi=50)
         if verbose == -2:
             plt.show()
         if verbose > 0:
@@ -717,7 +727,7 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
         if verbose and i in plot_frames:
             fig = plt.figure(figsize=(8,6))
             ax = fig.add_subplot(111)
-            ax.plot(x[left_bkg_left_hand_edge:right_bkg_right_hand_edge],row[left_bkg_left_hand_edge:right_bkg_right_hand_edge])
+            ax.plot(x[left_bkg_left_hand_edge:right_bkg_right_hand_edge],row[left_bkg_left_hand_edge:right_bkg_right_hand_edge],linestyle='-',marker='.') # Data in background regions
             ax.plot(bkg_cols_reject,y_reject,'kx',label='outlier (ignored)') # Ignored pixels
 
             if mask is not None:
@@ -741,7 +751,12 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
             ax.set_ylabel('Counts at row %d'%(i+1))
             ax.legend(loc='upper left',numpoints=1,framealpha=1)
 
+
             ylim_full = ax.get_ylim()
+
+        
+            if 'SAVE_FIG' in globals() and SAVE_FIG:
+                plt.savefig(f"spectral_extraction_images/aperture_loc_before_subtract_with_back_fit_row_{i+1}_star_{star+1}_frame_{frame_no}.pdf",dpi=50)
 
             if verbose == -2:
                 plt.show()
@@ -795,6 +810,9 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
             plt.ylabel('Background subtracted counts at row %d'%(i+1))
             plt.ylim(-200,200)
             plt.legend(loc='upper left',numpoints=1,framealpha=1)
+            if 'SAVE_FIG' in globals() and SAVE_FIG:
+                plt.savefig(f"spectral_extraction_images/aperture_loc_after_subtract_row_{i+1}_star_{star+1}_frame_{frame_no}.pdf",dpi=50)
+
             if verbose == -2:
                 plt.show()
             if verbose > 0:
@@ -998,9 +1016,14 @@ def extract_all_frame_fluxes(science_list,master_bias,master_flat,trace_dict,win
 
     for i,f in enumerate(science_list):
 
-        print(f, '[%.1f%% complete, %d mins since start]'%((i+1)*100./len(science_list),(time.time()-start_time)/60))
-        log = open('reduction_output.log','a')
-        log.write('%s [%.1f%% complete, %d mins since start] \n'%(f,(i+1)*100./len(science_list),(time.time()-start_time)/60))
+        #print(f, '[%.1f%% complete, %d mins since start]'%((i+1)*100./len(science_list),(time.time()-start_time)/60))
+        #log = open('reduction_output.log','a')
+        #log.write('%s [%.1f%% complete, %d mins since start] \n'%(f,(i+1)*100./len(science_list),(time.time()-start_time)/60))
+        #log.close()
+        
+        print(f, '[%.1f%% complete, %d mins since start, %d/%d]' % ((i+1)*100./len(science_list), (time.time()-start_time)/60, i+1, len(science_list)))
+        log = open('reduction_output.log', 'a')
+        log.write('%s [%.1f%% complete, %d mins since start, %d/%d] \n' % (f, (i+1)*100./len(science_list), (time.time()-start_time)/60, i+1, len(science_list)))
         log.close()
 
         if gaussian_defined_aperture:
@@ -1124,6 +1147,12 @@ def extract_all_frame_fluxes(science_list,master_bias,master_flat,trace_dict,win
                     plt.title("Pixel mask, frame %d"%i)
                     plt.ylabel("Pixel column")
                     plt.xlabel("Pixel row")
+
+                    # plt.savefig(f"spectral_extraction_images/pixel_mask_frame_{i}.pdf",dpi=50)
+
+                    # if SAVE_FIG:
+                    #     plt.savefig(f"spectral_extraction_images/pixel_mask_frame_{i}.pdf",dpi=50)
+
                     if verbose == -2:
                         plt.show()
                     if verbose > 0:
@@ -1168,6 +1197,7 @@ def extract_all_frame_fluxes(science_list,master_bias,master_flat,trace_dict,win
                     plt.title("Post-pixel-masked frame")
                     plt.xlabel("Pixel column")
                     plt.ylabel("Pixel row")
+                    # plt.savefig(f"spectral_extraction_images/pre_post_pixel_masked_frame_{i}.pdf",dpi=50)
 
                     if verbose == -2:
                         plt.show()
@@ -1257,7 +1287,7 @@ def extract_all_frame_fluxes(science_list,master_bias,master_flat,trace_dict,win
                     star_number += window - 1
 
                 if search_width[star_number] > 0:
-                    trace, force_verbose, fwhm, gauss_std = find_spectral_trace(frame,guess_location[star_number],search_width[star_number],gaussian_width,trace_poly_order,trace_spline_sf,star_number,verbose,co_add_rows,instrument)
+                    trace, force_verbose, fwhm, gauss_std = find_spectral_trace(frame,guess_location[star_number],search_width[star_number],gaussian_width,trace_poly_order,trace_spline_sf,star_number,verbose,co_add_rows,instrument,frame_no=i)
                 else:
                     trace = np.ones(row_max-row_min)*guess_location[star_number]
                     fwhm = gauss_std = np.ones(row_max-row_min)
@@ -1300,13 +1330,13 @@ def extract_all_frame_fluxes(science_list,master_bias,master_flat,trace_dict,win
                     flux,error,sky_avg = extract_trace_flux(frame,trace,aperture_width[star_number],background_offset[star_number],\
                                                                                                     background_width[star_number],uncorrected_frame[0],poly_bg_order[star_number],am,\
                                                                                                     exposure_time,force_verbose,star_number,masks['mask%d'%(star_number+1)],instrument,row_min,trace_std,readout_speed,co_add_rows,rectify_frame,oversampling_factor,\
-                                                                                                    gain_file,readnoise_file)
+                                                                                                    gain_file,readnoise_file,frame_no=i)
 
                 else:
                     flux,error,sky_avg,sky_left,sky_right,base_left,base_right,max_counts,rn_error,scin_error,pois_error,bkg_poly_order,raw_star_flux = extract_trace_flux(frame,trace,aperture_width[star_number],background_offset[star_number],\
                                                                                 background_width[star_number],uncorrected_frame,poly_bg_order[star_number],am,\
                                                                                 exposure_time,force_verbose,star_number,masks['mask%d'%(star_number+1)],instrument,row_min,trace_std,readout_speed,co_add_rows,rectify_frame,oversampling_factor,\
-                                                                                gain_file,readnoise_file)
+                                                                                gain_file,readnoise_file,frame_no=i)
 
                     plt.close("all")
 
@@ -1413,6 +1443,30 @@ def generate_wl_curve(stellar_fluxes,stellar_errors,time,nstars,overwrite=True):
     plt.ylabel('Flux')
     plt.savefig('white_light_curve.pdf')
     plt.close()
+
+    plt.figure(figsize=(8,6))
+
+    if old_time is None:
+        x_vals = time - int(time[0])
+        y_vals = ratio
+    else:
+        x_vals = np.hstack((old_time, time)) - int(old_time[0])
+        y_vals = np.hstack((old_ratio, ratio))
+
+    plt.plot(x_vals, y_vals, 'ko', markersize=5)
+    plt.xlabel('Time (MJD/BJD - %d)' % int(time[0] if old_time is None else old_time[0]))
+    plt.ylabel('Flux')
+
+    # Add vertical lines and point numbers
+    for i, (x, y) in enumerate(zip(x_vals, y_vals)):
+        plt.axvline(x, color='gray', linestyle='--', linewidth=0.5, alpha=0.3)
+        plt.text(x, y + 0.001, str(i), fontsize=6, ha='center', va='bottom', rotation=90)
+
+    plt.tight_layout()
+    plt.savefig('white_light_curve_numbered.pdf')
+    plt.close()
+
+
 
     try:
         os.mkdir("./initial_WL_fit")
@@ -1524,6 +1578,14 @@ def main(input_file='extraction_input.txt'):
                                "NIRSPEC_order":NIRSPEC_order,'use_lacosmic':bool(int(input_dict['use_lacosmic'])),"rectify_frame":bool(int(input_dict["rectify_data"]))}
 
     v = int(input_dict['verbose'])
+
+        # Enable figure generation for saving even if verbose==0
+    try:
+        if SAVE_FIG and v == 0:
+            v = 1
+    except NameError:
+        print('Issue here with SAVE_FIG variable')
+        pass
 
     try:
         science_files = np.atleast_1d(np.loadtxt(input_dict['science_list'],str))
@@ -1656,6 +1718,36 @@ def resample_frame(data,oversampling=10,xmin=0,verbose=False):
             plt.close()
 
     return data_resampled
+
+import argparse
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s", "--save_fig",
+        action="store_true",
+        help="Enable saving of figures instead of (or in addition to) showing them."
+    )
+    args = parser.parse_args()
+
+    # pass this to your main or set a global flag
+    SAVE_FIG = int(args.save_fig)
+    print("SAVE_FIG =", SAVE_FIG)
+
+        # If saving figures, suppress GUI windows
+    if 'SAVE_FIG' in globals() and SAVE_FIG:
+        try:
+            import matplotlib
+            matplotlib.use('Agg')  # non-interactive backend
+        except Exception:
+            pass
+        # Prevent any window pops from plotting code
+        def _noshow(*args, **kwargs):
+            try:
+                plt.close()
+            except Exception:
+                pass
+        plt.show = _noshow
 
 
 main()

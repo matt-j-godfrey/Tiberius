@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import emcee
 from corner import corner,overplot_lines
 import sys
-from Tiberius.src.fitting_utils import TransitModelGPPM as tmgp
+from fitting_utils import TransitModelGPPM as tmgp
 import copy
 from scipy import stats
 
@@ -52,9 +52,11 @@ def save_LM_results(best_pars,uncertainties,namelist,bin_number,best_model,time,
     ndim = len(best_pars)
 
     if bin_number == 1:
+        print('First bin, creating best_fit_parameters.txt')
         new_tab = open('best_fit_parameters.txt','w')
         diagnostic_tab = open('LM_statistics.txt','w')
     else:
+        print('n bin, creating best_fit_parameters.txt')
         new_tab = open('best_fit_parameters.txt','a')
         diagnostic_tab = open('LM_statistics.txt','a')
 
@@ -96,7 +98,7 @@ def save_LM_results(best_pars,uncertainties,namelist,bin_number,best_model,time,
     return
 
 
-def recover_quartiles_single(samples,namelist,bin_number,verbose=True,save_result=False,burn=False):
+def recover_quartiles_single(samples,namelist,bin_number,verbose=True,save_result=False,burn=False,use_kipping=False):
     """
     Function that calculates the 16th, 50th and 84th percentiles from a numpy array / emcee chain and saves these to a table.
 
@@ -123,6 +125,14 @@ def recover_quartiles_single(samples,namelist,bin_number,verbose=True,save_resul
     # generate dictionary of how many decimal places we want to round each parameter to before calculating the mode of the rounded distribution
     namelist_decimal_places = {"t0":6,"period":6,"k":6,"aRs":2,"inc":2,"ecc":3,"omega":2,\
                                "u1":2,"u2":2,"u3":2,"u4":2,"f":4,"s":3,"A":3,"step1":3,"step2":3,"breakpoint":0,"lniL":2}
+                               
+    # MG added in for dealing with Kipping:
+    # Identify indices for the LD params if we are using Kipping (q-parameterisation)
+    idx_q1 = idx_q2 = None
+    if use_kipping:
+        # by construction, the sampler labels are 'u1' and 'u2' but they actually are q1,q2
+        if "u1" in namelist: idx_q1 = namelist.index("u1")
+        if "u2" in namelist: idx_q2 = namelist.index("u2")
 
     # now pad the dictionray with the systematics coefficients which could be a large number of parameters (although much less than the 100 allowed for below)
     for i in range(100):
@@ -154,21 +164,70 @@ def recover_quartiles_single(samples,namelist,bin_number,verbose=True,save_resul
         upper.append(uplim)
 
         # calculate mode of rounded sample array
-        key = namelist[i].replace('$','').replace("\\",'')
-        key = key.split("_")[0]
-        rounded_par = np.round(par,namelist_decimal_places[key])
-        mode_value, mode_count = stats.mode(rounded_par,keepdims=True)
+#        key = namelist[i].replace('$','').replace("\\",'')
+#        key = key.split("_")[0]
+#        rounded_par = np.round(par,namelist_decimal_places[key])
+#        mode_value, mode_count = stats.mode(rounded_par,keepdims=True)
+#        mode.append(mode_value[0])
+
+        # mode of rounded sample
+        key_full = namelist[i].replace('$','').replace("\\",'')
+        key_base = key_full.split("_")[0]
+        rounded_par = np.round(par, namelist_decimal_places.get(key_base, 3))
+        mode_value, mode_count = stats.mode(rounded_par, keepdims=True)
         mode.append(mode_value[0])
 
-        if save_result:
-            new_tab.write("%s_%d = %f + %f - %f \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,best,uplim-best,best-lolim))
-            if not burn:
-                new_tab_2.write("%s_%d = %f (%d counts = %d%%) \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,mode_value[0],mode_count[0],100*mode_count[0]/len(par)))
+#        if save_result:
+#            new_tab.write("%s_%d = %f + %f - %f \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,best,uplim-best,best-lolim))
+#           if not burn:
+#                new_tab_2.write("%s_%d = %f (%d counts = %d%%) \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,mode_value[0],mode_count[0],100*mode_count[0]/len(par)))
+#
+#        if verbose:
+#            print("%s_%d = %f + %f - %f"%(namelist[i].replace('$','').replace("\\",''),bin_number,best,uplim-best,best-lolim))
+#            if not burn:
+#                print("%s_%d (mode of posterior) = %f (%d counts = %.2f%%) \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,mode_value[0],mode_count[0],100*mode_count[0]/len(par)))
 
+        # ----- write values block -----
+        if save_result:
+            if use_kipping and key_base in ("u1", "u2"):
+                # Save sampled variables as q1/q2
+                q_label = "q1" if key_base == "u1" else "q2"
+                new_tab.write(f"{q_label}_{bin_number} = {best:.6f} + {uplim-best:.6f} - {best-lolim:.6f} \n")
+            else:
+                new_tab.write(f"{key_full}_{bin_number} = {best:.6f} + {uplim-best:.6f} - {best-lolim:.6f} \n")
+
+            # modes file (prod only)
+            if not burn and new_tab_2 is not None:
+                if use_kipping and key_base in ("u1", "u2"):
+                    q_label = "q1" if key_base == "u1" else "q2"
+                    new_tab_2.write(f"{q_label}_{bin_number} = {mode_value[0]:.6f} ({mode_count[0]} counts = {100*mode_count[0]/len(par):.0f}%) \n")
+                else:
+                    new_tab_2.write(f"{key_full}_{bin_number} = {mode_value[0]:.6f} ({mode_count[0]} counts = {100*mode_count[0]/len(par):.0f}%) \n")
+
+        # ----- screen print -----
         if verbose:
-            print("%s_%d = %f + %f - %f"%(namelist[i].replace('$','').replace("\\",''),bin_number,best,uplim-best,best-lolim))
-            if not burn:
-                print("%s_%d (mode of posterior) = %f (%d counts = %.2f%%) \n"%(namelist[i].replace('$','').replace("\\",''),bin_number,mode_value[0],mode_count[0],100*mode_count[0]/len(par)))
+            if use_kipping and key_base in ("u1","u2"):
+                q_label = "q1" if key_base == "u1" else "q2"
+                print(f"{q_label}_{bin_number} = {best} + {uplim-best} - {best-lolim}")
+                if not burn:
+                    print(f"{q_label}_{bin_number} (mode of posterior) = {mode_value[0]} ({mode_count[0]} counts = {100*mode_count[0]/len(par):.2f}%) \n")
+            else:
+                print(f"{key_full}_{bin_number} = {best} + {uplim-best} - {best-lolim}")
+                if not burn:
+                    print(f"{key_full}_{bin_number} (mode of posterior) = {mode_value[0]} ({mode_count[0]} counts = {100*mode_count[0]/len(par):.2f}%) \n")
+
+    # After looping: append converted u1/u2 if Kipping was used
+    if save_result and use_kipping and (idx_q1 is not None) and (idx_q2 is not None):
+        q1_s = samples[:, idx_q1]
+        q2_s = samples[:, idx_q2]
+        u1_s = 2.0 * np.sqrt(q1_s) * q2_s
+        u2_s = np.sqrt(q1_s) * (1.0 - 2.0 * q2_s)
+        for label, arr in (("u1", u1_s), ("u2", u2_s)):
+            lo, medv, hi = np.percentile(arr, [16, 50, 84])
+            new_tab.write(f"{label}_{bin_number} = {medv:.6f} + {hi-medv:.6f} - {medv-lo:.6f} \n")
+            if verbose:
+                print(f"{label}_{bin_number} = {medv} + {hi-medv} - {medv-lo}")
+
 
     if save_result:
         print('\nSaving best fit parameters to table...\n')
@@ -414,7 +473,7 @@ def run_emcee(starting_model,x,y,e,nwalk,nsteps,nthreads,burn=False,wavelength_b
 
     print('\n')
     # generate median, upper and lower bounds
-    med, up, low, mode = recover_quartiles_single(samples,starting_model.namelist,bin_number=(wavelength_bin+1),verbose=True,save_result=True,burn=burn)
+    med, up, low, mode = recover_quartiles_single(samples,starting_model.namelist,bin_number=(wavelength_bin+1),verbose=True,save_result=True,burn=burn,use_kipping=getattr(starting_model, "use_kipping", False))
 
     if not burn and ndim > 1:
         # pickle.dump(sampler,open('emcee_sampler_wb%s.pickle'%(str(wavelength_bin+1).zfill(2)),'wb'))
@@ -534,10 +593,14 @@ def advance_chain(sampler,p0,nsteps,burn,save_chain,wavelength_bin):
 
     width = 100 # for progress bar
     highest_prob = 0
+    highest_prob = -1000000 # MG edit: temp change
     print('Progress:') # for progress bar
     for i,(pos, prob, state) in enumerate(sampler.sample(p0,iterations=nsteps,store=True)):
         n = int((width+1) * float(i) / nsteps)
         sys.stdout.write("\r[{0}{1}]".format('#' * n, ' ' * (width - n))) # for progress bar
+        
+        # MG PRINT THIS FOR MORE DETAILS!!
+        #print('MG Line 542 mcmc: np.max(prob): ',np.max(prob))
 
         if np.max(prob) > highest_prob:
             highest_prob_pars = pos[np.argmax(prob)]

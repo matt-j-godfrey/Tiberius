@@ -9,7 +9,7 @@ import pickle
 import glob
 from matplotlib.ticker import AutoMinorLocator
 from global_utils import parseInput
-from Tiberius.src.fitting_utils import mcmc_utils as mc
+from fitting_utils import mcmc_utils as mc
 from scipy.stats import chi2 as c2
 from scipy.special import erfinv
 
@@ -232,6 +232,7 @@ def plot_models(model_list,time,flux_array,error_array,wvl_centre,rebin_data=Non
 
     # define nbins as the minimum length of the following: this is done if we are plotting the models while the MCMC still has to run on remaining bins
     nbins = min(len(model_list),len(flux_array),len(wvl_centre))
+    print('nbins = ',nbins)
 
     # define the offsets in y for each light curve so they're not overlapping
     offsets = [0.015 * i for i in range(nbins)]
@@ -516,7 +517,7 @@ def plot_single_model(model,time,flux,error,rebin_data=None,save_fig=False,wavel
     ax2.axhline(0,ls='--',color='k')
 
     if plot_residual_std > 0:
-        print("plotting outliers")
+        print("Plotting outliers")
         rms = np.sqrt(np.mean(yr**2))*1e6
 
         ax2.axhline(plot_residual_std*rms,ls='--',color='r')
@@ -574,6 +575,14 @@ def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
     (array of binned times, array of binned fluxes, array of binned errors)
 
     """
+
+    # MATT:
+
+    #print('xbins: ',xbins)
+    #print('x: ',x)
+    #print('y: ',y)
+
+
     digitized = np.digitize(x,xbins)
     xbin = []
     ybin = []
@@ -581,10 +590,12 @@ def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
     for i in range(1,len(xbins)):
         bin_y_vals = y[digitized == i]
         bin_x_vals = x[digitized == i]
+        
+        #print('Bin?: ',i, '. Weighted?: ',weighted,'. NaN?: ',np.isnan(bin_x_vals),' & ',np.isnan(bin_y_vals),'. Size?: ',len(bin_x_vals))
 
         if weighted:
             if e is None:
-                raise Exception('Cannot compute weighted mean without Falseerrors')
+                raise Exception('Cannot compute weighted mean without False errors')
             bin_e_vals = e[digitized == i]
             weights = 1.0/bin_e_vals**2
             xbin.append( np.sum(weights*bin_x_vals) / np.sum(weights) )
@@ -598,6 +609,9 @@ def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
             ybin.append(bin_y_vals.mean())
             #xbin.append(stats.nanmean(bin_x_vals))
             #ybin.append(stats.nanmean(bin_y_vals))
+            #xbin.append(np.nanmean(bin_x_vals))
+            #ybin.append(np.nanmean(bin_y_vals))
+
             if errors_from_rms:
                 ebin.append(np.std(bin_y_vals))
             else:
@@ -754,7 +768,11 @@ def recover_transmission_spectrum(directory,save_fig=False,plot_fig=True,bin_mas
         if not bool(int(input_dict['fix_u4'])):
             u4,u4_up,u4_low = np.array(u4),np.array(u4_up),np.array(u4_low)
 
+    print(np.nanmedian(k))
+    print(np.nanmedian(k_up))
+    print(np.nanmedian(k_low))
     print("\nMedian Rp/Rs = %.6f ;  Median Rp/Rs +ve error (ppm) = %d ; Median Rp/Rs -ve error (ppm) = %d \n"%(np.nanmedian(k),np.nanmedian(k_up)*1e6,np.nanmedian(k_low)*1e6))
+    
 
     if bin_mask is not None:
         k = k[bin_mask]
@@ -866,9 +884,13 @@ def plot_multi_trans_spec(directory_lists,save_fig=False,plot_fig=False):
 
     for d in directory_lists:
         try:
-            k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d+'best_fit_parameters_GP.txt',d+'fitting_input.txt',False,False)
+            #k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d+'best_fit_parameters_GP.txt',d+'fitting_input.txt',False,False)
+            #k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d,False,True)
+            k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d, False, False)
         except:
-            k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d+'best_fit_parameters_noGP.txt',d+'fitting_input.txt',False,False)
+            #k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d+'best_fit_parameters_noGP.txt',d+'fitting_input.txt',False,False)
+            #k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d,False,True)
+            k,k_up,k_low,w,we,H_Rs = recover_transmission_spectrum(d, False, False)
         k_all = np.hstack((k_all,k))
         k_up_all = np.hstack((k_up_all,k_up))
         k_low_all = np.hstack((k_low_all,k_low))
@@ -1069,6 +1091,8 @@ def expected_vs_calculated_ldcs(directory='.',save_fig=False,bin_mask=None):
 
     u1,u1_up,u1_low,u2,u2_up,u2_low,u3,u3_up,u3_low,u4,u4_up,u4_low = np.array(u1),np.array(u1_up),np.array(u1_low),np.array(u2),np.array(u2_up),np.array(u2_low),\
     np.array(u3),np.array(u3_up),np.array(u3_low),np.array(u4),np.array(u4_up),np.array(u4_low)
+    
+    print('MG: Plotting LD. u1: ',u1,'. u2: ',u2)
 
     if bin_mask is not None:
 
@@ -1106,6 +1130,7 @@ def expected_vs_calculated_ldcs(directory='.',save_fig=False,bin_mask=None):
     fig = plt.figure()
     ax = plt.subplot(111)
 
+    
     ax.plot(wvl_centre,ldtk_u1,color='C0',label='Calculated ($u1$)')
     ax.fill_between(wvl_centre,ldtk_u1,ldtk_u1+ldtk_u1_err,color='lightgrey')
     ax.fill_between(wvl_centre,ldtk_u1,ldtk_u1-ldtk_u1_err,color='lightgrey')
@@ -1145,7 +1170,7 @@ def expected_vs_calculated_ldcs(directory='.',save_fig=False,bin_mask=None):
     ax.tick_params(which='minor',bottom=True,top=True,left=True,right=True,direction="inout",labelsize=8,\
                        length=4,width=1.)
 
-
+    print('MG: plotting LD stuff now')
     if save_fig:
         plt.savefig('%s/expected_vs_calculated_ldcs.pdf'%directory,bbox_inches='tight')
         plt.savefig('%s/expected_vs_calculated_ldcs.png'%directory,bbox_inches='tight')

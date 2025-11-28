@@ -9,7 +9,7 @@ import os
 import pandas as pd
 import pysynphot.binning as astrobin
 import warnings as warn
-from Tiberius.src.reduction_utils import wavelength_calibration as wc
+from reduction_utils import wavelength_calibration as wc
 
 ### define the alkali metal lines, air wavelengths
 sodium_d1 = 5890
@@ -623,7 +623,7 @@ def simple_bin(flux,flux_error,ancillary_data,wvl_solution,bin_edges,weighted=Tr
     return np.array(binned_flux),np.array(binned_error),binned_ancillary
 
 
-def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin_centres=None,alkali=False,save_fig=False,ratio=True,xmin=None,xmax=None):
+def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin_centres=None,alkali=False,save_fig=False,ratio=True,xmin=None,xmax=None,telluric=False):
 
     """A function that plots the spectra of target and comparison and the ratio of these, along with bin boundaries and ability to plot telluric spectra.
 
@@ -646,14 +646,23 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
 
     if ratio:
         plt.figure()
+        plt.figure(figsize=(12,6))
     else:
-        plt.figure(figsize=(7,4))
+        plt.figure(figsize=(12,6))
 
     if ratio:
         nplots = 2
     else:
         nplots = 1
-
+        
+    if telluric:
+        path_to_EFOSC_utils = os.path.dirname(wc.__file__)
+        tell_table = np.loadtxt(path_to_EFOSC_utils + '/EFOSC_utils/TELLURICS/tellurics_halpha.dat')
+        tell_wvl = tell_table[:, 0]
+        tell_flux = tell_table[:, 1]
+        relevant_indices = ((tell_wvl >= wvl_solution[0]) & (tell_wvl <= wvl_solution[-1]))
+        tell_wvl = tell_wvl[relevant_indices]
+        tell_flux = tell_flux[relevant_indices]
 
     plt.subplot(nplots,1,1)
 
@@ -688,6 +697,9 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
             plt.xlim(xmin,xmax)
 
         plt.subplot(212)
+        
+        if telluric:
+            plt.plot(tell_wvl, tell_flux, color='k')
 
     if bin_edges is not None:
         for i in bin_edges:
@@ -889,12 +901,14 @@ def wvl_bin_data_different_wvl_solutions(flux1,err1,flux2,err2,wvl_solutions, bi
         current_photon_noise_2 = []
 
         current_wvl_solution = wvl_solutions[i]
+        #print('Current i value: ',current_wvl_solution)
 
         # inner loop: loop through all bins
         for j in range(0,nbins-1):
 
             idx = (current_wvl_solution >= bins[j]) & (current_wvl_solution < bins[j+1])
             nidx = len(np.where(flux1[i][idx])[0])
+            #print('Bin ranges: ', bins[j], bins[j+1])
 
             if n_tukey_points != 0:
 
@@ -1372,7 +1386,7 @@ def uniform_tophat_mean(newx,x, y, dy=None,nan=False):
         bin_n[0] = len(y[loc])
         if dy is not None:
             bin_dy[0] = np.sqrt(np.sum(dy[loc]**2.0))/len(y[loc])
-    elif len(loc[0]) is 0 :
+    elif len(loc[0]) == 0 :
         ynew[0]=np.nan
         bin_n[0] = np.nan
         if dy is not None:

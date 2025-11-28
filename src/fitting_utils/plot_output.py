@@ -9,8 +9,8 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from global_utils import parseInput
-from Tiberius.src.fitting_utils import plotting_utils as pu
-from Tiberius.src.fitting_utils import mcmc_utils as mc
+from fitting_utils import plotting_utils as pu
+from fitting_utils import mcmc_utils as mc
 
 ### Define command line arguments with help
 
@@ -60,6 +60,7 @@ directory = os.getcwd()
 if not args.white_light_curve and not args.photon_noise and args.start_bin is None and args.end_bin is None:
     ### Plot the transmission spectrum & the Rp/Rs error divided by photon noise
     trans_fig = pu.recover_transmission_spectrum(directory,save_fig=args.save_fig,plot_fig=True,bin_mask=args.mask_bins,print_RpErr_over_RMS=True,save_to_tab=args.save_table,iib=args.iib)
+    print('MATT: ',directory)
     if args.close_plots:
         plt.close()
     else:
@@ -165,17 +166,38 @@ for i,model in enumerate(m):
         contact2 = full_transit.min()
         contact3 = full_transit.max()
 
-        # use these to refine contact1 and contact4
-        contact1 = np.where(tm[:contact2]==tm.max())[0].max()
-        contact4 = np.where(tm[contact3:]==tm.max())[0].min()+contact3
+        #contact1 = np.where(tm[:contact2]==tm.max())[0].max()
+        #contact4 = np.where(tm[contact3:]==tm.max())[0].min()+contact3
 
-        ingress_duration = 24*60*(x[i][contact2]-x[i][contact1])
-        print("Ingress duration = %d mins = %d frames"%(ingress_duration,contact2-contact1))
+        try:
+            contact1 = np.where(tm[:contact2] == tm.max())[0].max()
+        except ValueError:
+            contact1 = None
+            print("Partial transit detected: missing ingress (no out-of-transit data before transit).")
 
-        transit_duration = 24*60*(x[i][contact4]-x[i][contact1])
-        print("Transit duration = %d mins = %d frames"%(transit_duration,contact4-contact1))
+        try:
+            contact4 = np.where(tm[contact3:] == tm.max())[0].min() + contact3
+        except ValueError:
+            contact4 = None
+            print("Partial transit detected: missing egress (no out-of-transit data after transit).")
 
-        print("Contact 1 = %d; Contact 2 = %d; Contact 3 = %d; Contact 4 = %d"%(contact1,contact2,contact3,contact4))
+        # Only compute durations if both contact1 and contact4 exist
+        if contact1 is not None and contact4 is not None:
+            ingress_duration = 24 * 60 * (x[i][contact2] - x[i][contact1])
+            print("Ingress duration = %d mins = %d frames" % (ingress_duration, contact2 - contact1))
+
+            transit_duration = 24 * 60 * (x[i][contact4] - x[i][contact1])
+            print("Transit duration = %d mins = %d frames" % (transit_duration, contact4 - contact1))
+
+            print("Contact 1 = %d; Contact 2 = %d; Contact 3 = %d; Contact 4 = %d" % (contact1, contact2, contact3, contact4))
+        else:
+            print("Skipping duration calculations due to incomplete transit coverage.")
+
+        #ingress_duration = 24*60*(x[i][contact2]-x[i][contact1])
+        #print("Ingress duration = %d mins = %d frames"%(ingress_duration,contact2-contact1))
+        #transit_duration = 24*60*(x[i][contact4]-x[i][contact1])
+        #print("Transit duration = %d mins = %d frames"%(transit_duration,contact4-contact1))
+        #print("Contact 1 = %d; Contact 2 = %d; Contact 3 = %d; Contact 4 = %d"%(contact1,contact2,contact3,contact4))
 
 residuals = np.atleast_1d(np.array(residuals))
 

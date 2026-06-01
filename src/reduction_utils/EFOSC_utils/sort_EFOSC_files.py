@@ -5,6 +5,8 @@ from astropy.io import fits
 import glob
 import os
 import argparse
+from collections import Counter
+summary = Counter()
 
 parser = argparse.ArgumentParser(description='Load all fits files within a directory and produced lists of file types')
 parser.add_argument("-c","--clobber",help="Overwrite previously saved lists if they exit. Particularly useful when doing reductions in real-time",action='store_true')
@@ -59,6 +61,7 @@ def split_list(file_names,pwd):
             grism = 'Gr13'
         
         print(i, grism, filt, slit, obj)
+        summary[(obj, grism, slit, filt)] += 1
         
         try:
             file_list = open(obj+'_'+grism+'_'+slit+filt+'_list','a')
@@ -71,3 +74,8 @@ def split_list(file_names,pwd):
         f.close()
 
 split_list(all_files,pwd)
+
+print("\nSummary counts:")
+for key, count in sorted(summary.items()):
+    obj, grism, slit, filt = key
+    print(f"{count:3d}  {obj:12s} {grism:5s} {slit:8s} {filt}")

@@ -1,0 +1,25 @@
+import sys
+import os
+#import Tiberius
+
+Tiberius_path = "/".join(sys.argv[0].split("/")[:-1])
+print('Tiberius Path: ',Tiberius_path)
+starting_bin = int(sys.argv[1])
+stopping_bin = int(sys.argv[2])
+
+print('Path: ',Tiberius_path)
+
+
+print('About to run: ',"python %s/plot_output.py -s -st -cp"%Tiberius_path)
+os.system("python %s/plot_output.py -s -st -cp"%Tiberius_path)
+os.system("python %s/model_table_generator.py"%Tiberius_path)
+try:
+	os.system("mkdir tables")
+	os.system("mkdir plots")
+	os.system("mkdir pickled_objects")
+except:
+	pass
+os.system("mv *.pickle pickled_objects/")
+os.system("mv *.txt tables/")
+os.system("mv *.png plots/")
+os.system("mv *.pdf plots/")

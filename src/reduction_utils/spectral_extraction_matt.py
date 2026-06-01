@@ -802,20 +802,26 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
 
         # Error calculation used http://www.ucolick.org/~bolte/AY257/s_n.pdf as a reference
         # Note: this neglects the error in the flat field
-        if sum(row[aperture_left_hand_edge:aperture_right_hand_edge]) <= 0:
+        aperture_sum = sum(row[aperture_left_hand_edge:aperture_right_hand_edge])
+        if aperture_sum <= 0:
             error.append(np.nan)
         else:
             if instrument == "Keck/NIRSPEC": # we include dark current but not scintillation
-                error.append(np.sqrt(sum(row[aperture_left_hand_edge:aperture_right_hand_edge])/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + dark_current*(aperture_width/oversampling_factor)*exposure_time/3600.)) # raw_flux here takes into account noise from the source and noise from the sky, since this is before background subtraction
+                error.append(np.sqrt(aperture_sum/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + dark_current*(aperture_width/oversampling_factor)*exposure_time/3600.)) # raw_flux here takes into account noise from the source and noise from the sky, since this is before background subtraction
 
             elif "JWST" in instrument: # we're using the error frame
                 error.append(np.sqrt(np.sum((error_frame[i][aperture_left_hand_edge:aperture_right_hand_edge]/oversampling_factor)**2)))#/(oversampling_factor**2)))
 
             else: # I'm assuming we're looking at ACAM/EFOSC data and we're including scintillation but not dark current
-                error.append(np.sqrt(sum(row[aperture_left_hand_edge:aperture_right_hand_edge])/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + scintillation**2))
+                scintillation_abs = scintillation * aperture_sum
+                error.append(np.sqrt(aperture_sum/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + scintillation_abs**2))
+                # print(f"Poisson term      = {np.sqrt(aperture_sum / oversampling_factor):.3f}")
+                # print(f"Read noise term   = {np.sqrt((aperture_npix / oversampling_factor) * readnoise**2):.3f}")
+                # print(f"Scintillation frac= {scintillation:.3e} ({scintillation*1e6:.1f} ppm)")
+                # print(f"Scintillation abs = {scintillation_abs:.3f}")
 
         if "JWST" not in instrument:
-            raw_star_flux.append(sum(row[aperture_left_hand_edge:aperture_right_hand_edge])/oversampling_factor)
+            raw_star_flux.append(aperture_sum/oversampling_factor)
 
         if verbose and i in plot_frames:
 

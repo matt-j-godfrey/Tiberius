@@ -2215,10 +2215,26 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
         else:
             trace = np.round(trace).astype(int)
 
-    W3 = 2.0
-    h0 = 8000.
+    # W is variriable dependent on the line of sight and wind direction
+    W3 = 2.0    # Dravins airmass exponent; 1.5, 1.75, or 2.0
+    h0 = 8000.  # atmospheric scale height in metres
+    CY_EFOSC = 1.42   # Osborn empirical correction factor for EFOSC / La Silla
+
     if instrument == "ACAM" or instrument == "EFOSC":
-        scintillation = 0.09 * D ** (-2.0 / 3.0) * (am ** W3) * np.exp(-h / h0) * (2.0 * exposure_time) ** (-0.5)
+        # Dravins / Young-style RMS form, D in cm
+        scintillation_dravins = 0.09*D**(-2./3.)*(am**W3)*np.exp(-h/h0)*(2.*exposure_time)**(-1./2.)
+
+        # Osborn modified Young approximation
+        D_m = D / 100.0
+        scintillation_osborn = np.sqrt(10.0e-6 * (CY_EFOSC**2)* D_m**(-4.0 / 3.0) * exposure_time**(-1.0) * (am**3.0) * np.exp(-2.0 * h / h0))
+        
+        # then just pick which.
+        scintillation = scintillation_osborn
+
+        print(f"Scintillation (Dravins) = {scintillation_dravins:.6e} ({scintillation_dravins*1e6:.1f} ppm)")
+        print(f"Scintillation (Osborn modified) = {scintillation_osborn:.6e} ({scintillation_osborn*1e6:.1f} ppm)")
+        print(f"Using scintillation = {scintillation:.6e} ({scintillation*1e6:.1f} ppm)")
+
     else:
         scintillation = 0
 
@@ -2872,8 +2888,13 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
                 error.append(np.sqrt(aperture_sum / oversampling_factor + (aperture_npix / oversampling_factor) * readnoise**2 + dark_current * (aperture_npix / oversampling_factor) * exposure_time / 3600.))
             elif "JWST" in instrument:
                 error.append(np.sqrt(np.sum((error_frame[i][usable_aperture_cols] / oversampling_factor) ** 2)))
-            else:
+            else: # I'm assuming we're looking at ACAM/EFOSC data and we're including scintillation but not dark current
+                scintillation_abs = scintillation * aperture_sum
                 error.append(np.sqrt(aperture_sum / oversampling_factor + (aperture_npix / oversampling_factor) * readnoise**2 + scintillation**2))
+                # print(f"Poisson term      = {np.sqrt(aperture_sum / oversampling_factor):.3f}")
+                # print(f"Read noise term   = {np.sqrt((aperture_npix / oversampling_factor) * readnoise**2):.3f}")
+                # print(f"Scintillation frac= {scintillation:.3e} ({scintillation*1e6:.1f} ppm)")
+                # print(f"Scintillation abs = {scintillation_abs:.3f}")
 
         if "JWST" not in instrument:
             raw_star_flux.append(aperture_sum / oversampling_factor)

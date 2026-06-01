@@ -12,6 +12,7 @@ from global_utils import parseInput
 from fitting_utils import mcmc_utils as mc
 from scipy.stats import chi2 as c2
 from scipy.special import erfinv
+import os
 
 
 ### FUNCTIONS USEFUL FOR THE PLOTTING OF DATA
@@ -33,7 +34,7 @@ def mjd2hours(x,t0):
 
 def calc_scale_height(g,Teq):
     """
-    Caculate the scale height of the planet given its surface gravity and equilibrium temperature
+    Calculate the scale height of the planet given its surface gravity and equilibrium temperature
 
     Input:
     g - surface gravity in m/s/s
@@ -47,7 +48,77 @@ def calc_scale_height(g,Teq):
     H = ((1.38e-23)*Teq)/(mu*(1.67e-27)*g) # Scale height, in metres
     return H
 
+def calculate_atmospheric_scale_height(input_dict):
+    """
+    Calculate the atmospheric scale height and H/Rs from the fitting input dictionary.
 
+    Returns:
+    (scale height in metres, scale height divided by stellar radius)
+    """
+
+    try:
+        g = float(input_dict["g"])
+    except:
+        g = (10**float(input_dict["logg"])) / 100.
+
+    H = calc_scale_height(g, float(input_dict["Teq"]))
+    Rs = float(input_dict["rs"]) * c.R_sun.value
+    return H, H / Rs
+
+def save_transmission_summary_table(directory=".",trans_spec_tab="transmission_spectrum.txt",beta_trans_spec_tab=None,output_tab="transmission_spectrum_summary.txt"):
+    """
+    Save one combined transmission-spectrum summary table containing the standard,
+    beta-rescaled, depth, and atmospheric-scale-height columns.
+    """
+
+    input_dict = parseInput(os.path.join(directory, 'fitting_input.txt'))
+    trans_spec_path = os.path.join(directory, trans_spec_tab)
+
+    w,we,k,k_up,k_low = np.loadtxt(trans_spec_path,unpack=True,usecols=[0,1,2,3,4])
+    w,we,k,k_up,k_low = np.atleast_1d(w),np.atleast_1d(we),np.atleast_1d(k),np.atleast_1d(k_up),np.atleast_1d(k_low)
+
+    if beta_trans_spec_tab is not None and os.path.exists(os.path.join(directory, beta_trans_spec_tab)):
+        _,_,_,k_up_beta,k_low_beta = np.loadtxt(os.path.join(directory, beta_trans_spec_tab),unpack=True,usecols=[0,1,2,3,4])
+        k_up_beta = np.atleast_1d(k_up_beta)
+        k_low_beta = np.atleast_1d(k_low_beta)
+    else:
+        k_up_beta = np.full_like(k_up, np.nan)
+        k_low_beta = np.full_like(k_low, np.nan)
+
+    d = k**2
+    d_up = 2.0*k*k_up
+    d_low = 2.0*k*k_low
+    d_up_beta = 2.0*k*k_up_beta
+    d_low_beta = 2.0*k*k_low_beta
+
+    H_m,H_Rs = calculate_atmospheric_scale_height(input_dict)
+    H_ref,_ = weighted_mean_uneven_errors(k,k_up,k_low)
+    H_values = (k - H_ref) / H_Rs
+    H_up = k_up / H_Rs
+    H_low = k_low / H_Rs
+    H_up_beta = k_up_beta / H_Rs
+    H_low_beta = k_low_beta / H_Rs
+
+    wavelength_units = determine_wvl_units(w)
+
+    with open(os.path.join(directory, output_tab),'w') as new_tab:
+        new_tab.write("# Atmospheric scale height (m): %.10e\n"%H_m)
+        new_tab.write("# Atmospheric scale height / stellar radius: %.10e\n"%H_Rs)
+        new_tab.write("# Scale-height reference Rp/Rs (weighted mean): %.10f\n"%H_ref)
+        new_tab.write(
+            "# Wavelength bin centre (%s), wavelength bin full width (%s), Rp/Rs, Rp/Rs +ve error, Rp/Rs -ve error, "
+            "Rp/Rs +ve error (beta rescaled), Rp/Rs -ve error (beta rescaled), depth, depth +ve error, depth -ve error, "
+            "depth +ve error (beta rescaled), depth -ve error (beta rescaled), H, H +ve error, H -ve error, "
+            "H +ve error (beta rescaled), H -ve error (beta rescaled)\n"%(wavelength_units,wavelength_units)
+        )
+
+        for i in range(len(w)):
+            new_tab.write(
+                "%f %f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f\n"%(
+                    w[i],we[i],k[i],k_up[i],k_low[i],k_up_beta[i],k_low_beta[i],d[i],d_up[i],d_low[i],
+                    d_up_beta[i],d_low_beta[i],H_values[i],H_up[i],H_low[i],H_up_beta[i],H_low_beta[i]
+                )
+            )
 
 def straight_line(x,m,c):
     """This is the function which fits a straight line to Rp vs ln(lambda) where the slope is given by -4*H
@@ -230,13 +301,15 @@ def plot_models(model_list,time,flux_array,error_array,wvl_centre,rebin_data=Non
     matplotlib figure object
     """
 
+    residual_zoom = 1   # larger = residuals look more zoomed in
+
     # define nbins as the minimum length of the following: this is done if we are plotting the models while the MCMC still has to run on remaining bins
     nbins = min(len(model_list),len(flux_array),len(wvl_centre))
 
     # define the offsets in y for each light curve so they're not overlapping
     offsets = [0.015 * i for i in range(nbins)]
 
-    # figure iut whether this is a white light curve
+    # figure out whether this is a white light curve
     try:
         tc = model_list[0].t0
     except:
@@ -258,11 +331,12 @@ def plot_models(model_list,time,flux_array,error_array,wvl_centre,rebin_data=Non
 
     for i in range(nbins):
 
-        # figure out whether we're using a common time array
-        if len(np.shape(time)) != 1 or isinstance(time,list) or time.shape[0] > 1:
-            t = time[i]
-        else:
+        # common 1D time array
+        if isinstance(time, np.ndarray) and time.ndim == 1:
             t = time
+        # list/array of per-bin time arrays
+        else:
+            t = time[i]
 
         # convert days to hours from mid-transit
         hours = mjd2hours(t,tc)
@@ -303,10 +377,10 @@ def plot_models(model_list,time,flux_array,error_array,wvl_centre,rebin_data=Non
             ax1.plot(hp,mu+model_y-offsets[i],color='r',alpha=1,lw=1,zorder=100)
             ax1.plot(hp,mu+1-offsets[i],color='g',alpha=1,lw=1) # Plot GP model alone
         else:
-            ax1.plot(hp,model_y-offsets[i],color='r',alpha=1,lw=2,zorder=100)
+            ax1.plot(hp,model_y-offsets[i],color='r',alpha=1,lw=2,zorder=1)
 
-        ax2.errorbar(hp,yr-offsets[i],ep,fmt='o',capsize=0,color='k',ecolor='k',ms=3,alpha=0.5,zorder=2)
-        ax2.axhline(-offsets[i],ls='--',color='r',lw=2)
+        ax2.errorbar(hp,yr * residual_zoom - offsets[i],ep * residual_zoom,fmt='o',capsize=0,color='k',ecolor='k',ms=3,alpha=0.5,zorder=2) 
+        ax2.axhline(-offsets[i],ls='-',color='r',lw=2)
 
     ax1.set_ylabel('Normalised flux + offset',fontsize=18)
 
@@ -346,10 +420,10 @@ def plot_models(model_list,time,flux_array,error_array,wvl_centre,rebin_data=Non
 
     if save_fig:
         if rebin_data is None:
-            plt.savefig('fitted_model.png',bbox_inches='tight',dpi=360)
+            plt.savefig('fitted_model.png',bbox_inches='tight',dpi=500)
             # ~ plt.savefig('fitted_model.pdf',bbox_inches='tight')
         else:
-            plt.savefig('fitted_model_rebin_%d.png'%rebin_data,bbox_inches='tight',dpi=360)
+            plt.savefig('fitted_model_rebin_%d.png'%rebin_data,bbox_inches='tight',dpi=500)
 
         plt.close()
         # plt.show()
@@ -542,9 +616,9 @@ def plot_single_model(model,time,flux,error,rebin_data=None,save_fig=False,wavel
 
         if rebin_data is None:
             # ~ plt.savefig('fitted_model%s.pdf'%wb,bbox_inches='tight')
-            plt.savefig('fitted_model%s.png'%wb,bbox_inches='tight',dpi=200)
+            plt.savefig('fitted_model%s.png'%wb,bbox_inches='tight',dpi=500)
         else:
-            plt.savefig('fitted_model%s_rebin_%d.png'%(wb,rebin_data),bbox_inches='tight',dpi=200)
+            plt.savefig('fitted_model%s_rebin_%d.png'%(wb,rebin_data),bbox_inches='tight',dpi=500)
 
         plt.close()
 
@@ -579,13 +653,17 @@ def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
     ybin = []
     ebin = []
     for i in range(1,len(xbins)):
-        bin_y_vals = y[digitized == i]
-        bin_x_vals = x[digitized == i]
+        mask = digitized == i
+        if not np.any(mask):
+            continue
+
+        bin_y_vals = y[mask]
+        bin_x_vals = x[mask]
 
         if weighted:
             if e is None:
-                raise Exception('Cannot compute weighted mean without Falseerrors')
-            bin_e_vals = e[digitized == i]
+                raise Exception('Cannot compute weighted mean without False errors')
+            bin_e_vals = e[mask]
             weights = 1.0/bin_e_vals**2
             xbin.append( np.sum(weights*bin_x_vals) / np.sum(weights) )
             ybin.append( np.sum(weights*bin_y_vals) / np.sum(weights) )
@@ -602,7 +680,7 @@ def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
                 ebin.append(np.std(bin_y_vals))
             else:
                 try:
-                    bin_e_vals = e[digitized == i]
+                    bin_e_vals = e[mask]
                     ebin.append(np.sqrt(np.sum(bin_e_vals**2)) / len(bin_e_vals))
                 except:
                     raise Exception('Must either supply errors, or calculate from rms')
@@ -882,7 +960,7 @@ def plot_multi_trans_spec(directory_lists,save_fig=False,plot_fig=False):
         return np.array(k_all),np.array(k_up_all),np.array(k_low_all),np.array(w_all),np.array(we_all),H_Rs
 
 
-def plot_transmission_spectrum(k_array,k_upper=None,k_lower=None,calibrated_wvl=None,wvl_errors=None,bin_width=250,save_fig=False,scale_height=None,model_atmos=None,iib=False,plot_depths=False):
+def plot_transmission_spectrum(k_array,k_upper=None,k_lower=None,calibrated_wvl=None,wvl_errors=None,bin_width=250,save_fig=False,scale_height=None,model_atmos=None,iib=False,plot_depths=False,output_filename='transmission_spectrum.pdf'):
 
     """
     Function that plots the transmission spectrum (Rp/Rs vs wavelength in Angstroms).
@@ -969,7 +1047,7 @@ def plot_transmission_spectrum(k_array,k_upper=None,k_lower=None,calibrated_wvl=
                        length=4,width=1.)
 
     if save_fig:
-        plt.savefig('transmission_spectrum.pdf',bbox_inches='tight')
+        plt.savefig(output_filename,bbox_inches='tight')
         plt.close()
     else:
         plt.show()

@@ -59,6 +59,8 @@ directory = os.getcwd()
 
 if not args.white_light_curve and not args.photon_noise and args.start_bin is None and args.end_bin is None:
     ### Plot the transmission spectrum & the Rp/Rs error divided by photon noise
+    # args.iib = input("Have you used iib for Na or K? (y/n): ").lower() == "y"
+    print("Plotting transmission spectrum and Rp/Rs error divided by photon noise...")
     trans_fig = pu.recover_transmission_spectrum(directory,save_fig=args.save_fig,plot_fig=True,bin_mask=args.mask_bins,print_RpErr_over_RMS=True,save_to_tab=args.save_table,iib=args.iib)
     if args.close_plots:
         plt.close()
@@ -165,19 +167,31 @@ for i,model in enumerate(m):
         contact2 = full_transit.min()
         contact3 = full_transit.max()
 
-        # use these to refine contact1 and contact4
-        contact1 = np.where(tm[:contact2]==tm.max())[0].max()
-        contact4 = np.where(tm[contact3:]==tm.max())[0].min()+contact3
+        try:
+            contact1 = np.where(tm[:contact2] == tm.max())[0].max()
+        except ValueError:
+            contact1 = None
+            print("Partial transit detected: missing ingress (no out-of-transit data before transit).")
 
-        ingress_duration = 24*60*(x[i][contact2]-x[i][contact1])
-        print("Ingress duration = %d mins = %d frames"%(ingress_duration,contact2-contact1))
+        try:
+            contact4 = np.where(tm[contact3:] == tm.max())[0].min() + contact3
+        except ValueError:
+            contact4 = None
+            print("Partial transit detected: missing egress (no out-of-transit data after transit).")
 
-        transit_duration = 24*60*(x[i][contact4]-x[i][contact1])
-        print("Transit duration = %d mins = %d frames"%(transit_duration,contact4-contact1))
+        # Only compute durations if both contact1 and contact4 exist
+        if contact1 is not None and contact4 is not None:
+            ingress_duration = 24 * 60 * (x[i][contact2] - x[i][contact1])
+            print("Ingress duration = %d mins = %d frames" % (ingress_duration, contact2 - contact1))
 
-        print("Contact 1 = %d; Contact 2 = %d; Contact 3 = %d; Contact 4 = %d"%(contact1,contact2,contact3,contact4))
+            transit_duration = 24 * 60 * (x[i][contact4] - x[i][contact1])
+            print("Transit duration = %d mins = %d frames" % (transit_duration, contact4 - contact1))
 
-residuals = np.atleast_1d(np.array(residuals))
+            print("Contact 1 = %d; Contact 2 = %d; Contact 3 = %d; Contact 4 = %d" % (contact1, contact2, contact3, contact4))
+        else:
+            print("Skipping duration calculations due to incomplete transit coverage.")
+
+residuals = [np.asarray(r, dtype=float).ravel() for r in residuals]
 
 if nbins == 1:
     ncols = 1
@@ -202,6 +216,7 @@ if args.save_table:
 
 beta_factors = []
 bin_counter = 0
+print('nplots = %d'%nplots)
 
 for plot_no in range(nplots):
     fig = plt.figure(figsize=(ncols*5,nrows*2.5))
@@ -292,8 +307,11 @@ for plot_no in range(nplots):
     if args.save_fig:
         if nbins > 10:
             plt.savefig('rms_vs_bins_%s.png'%(str(plot_no+1).zfill(4)),bbox_inches='tight',dpi=200)
+            plt.savefig('rms_vs_bins_%s.pdf'%(str(plot_no+1).zfill(4)),bbox_inches='tight',dpi=200)
         else:
-            plt.savefig('rms_vs_bins_%s.pdf'%(str(plot_no+1).zfill(4)),bbox_inches='tight')
+            plt.savefig('rms_vs_bins_%s.png'%(str(plot_no+1).zfill(4)),bbox_inches='tight',dpi=500)
+            plt.savefig('rms_vs_bins_%s.pdf'%(str(plot_no+1).zfill(4)),bbox_inches='tight',dpi=200)
+
     if not args.close_plots:
         plt.show()
     plt.close()
@@ -307,3 +325,29 @@ if args.save_table:
         mc.beta_rescale_uncertainties(np.array(beta_factors),"best_fit_parameters.txt",trans_spec_tab=None)
     else:
         mc.beta_rescale_uncertainties(np.array(beta_factors),"best_fit_parameters.txt","transmission_spectrum.txt")
+        pu.save_transmission_summary_table(".","transmission_spectrum.txt","transmission_spectrum_rescaled_beta_uncertainties.txt","transmission_spectrum_summary.txt")
+
+        if args.save_fig:
+            input_dict = parseInput("fitting_input.txt")
+            _,H_Rs = pu.calculate_atmospheric_scale_height(input_dict)
+            w,we,k,k_up,k_low = np.loadtxt("transmission_spectrum_rescaled_beta_uncertainties.txt",unpack=True,usecols=[0,1,2,3,4])
+
+            if args.iib:
+                pu.plot_transmission_spectrum(
+                    k,k_up,k_low,
+                    calibrated_wvl=we,
+                    wvl_errors=None,
+                    save_fig=True,
+                    scale_height=H_Rs,
+                    iib=True,
+                    output_filename='transmission_spectrum_rescaled_beta_uncertainties.pdf'
+                )
+            else:
+                pu.plot_transmission_spectrum(
+                    k,k_up,k_low,
+                    calibrated_wvl=w,
+                    wvl_errors=we/2,
+                    save_fig=True,
+                    scale_height=H_Rs,
+                    output_filename='transmission_spectrum_rescaled_beta_uncertainties.pdf'
+                )

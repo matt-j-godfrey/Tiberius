@@ -3,12 +3,16 @@ import os
 import Tiberius
 
 Tiberius_path = "/".join(sys.argv[0].split("/")[:-1])
+print('Tiberius Path: ',Tiberius_path)
 starting_bin = int(sys.argv[1])
 stopping_bin = int(sys.argv[2])
+print('Path: ',Tiberius_path)
 
 for i in range(starting_bin,stopping_bin):
+	print('About to run: ',"python %s/gppm_fit.py %d"%(Tiberius_path,i))
 	os.system("python %s/gppm_fit.py %d"%(Tiberius_path,i))
 
+print('About to run: ',"python %s/plot_output.py -s -st -cp"%Tiberius_path)
 os.system("python %s/plot_output.py -s -st -cp"%Tiberius_path)
 os.system("python %s/model_table_generator.py"%Tiberius_path)
 try:

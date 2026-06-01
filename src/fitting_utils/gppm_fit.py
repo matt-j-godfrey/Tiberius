@@ -7,6 +7,8 @@ import pickle
 from collections import OrderedDict
 import argparse
 from scipy.interpolate import UnivariateSpline as US
+from datetime import datetime
+from pathlib import Path
 
 from global_utils import parseInput
 from Tiberius.src.fitting_utils import mcmc_utils as mc
@@ -19,6 +21,23 @@ parser = argparse.ArgumentParser(description='Run fit to a single light curve th
 parser.add_argument('wavelength_bin', help="which wavelength bin are we running the fit to? This is indexed from 0. If running fit to the white light curve, this must be given as '0'",type=int)
 parser.add_argument('-dbp',"--determine_best_polynomials", help="Use this option to loop over all combination of polynomial input vectors and orders to determine the best fitting polynomials via a Nelder-Mead. This prevents an MCMC from running. Set this number to the maximum polynomial order you want to consider. e.g. 3 = cubic polys",default=0,type=int)
 args = parser.parse_args()
+
+### helper for rescaling data
+
+def log_rescale(out_dir, bin_idx, pre_rchi2, post_rchi2, scale, npts,
+                gp_used=False, context=""):
+    """
+    Append one line to rescale_summary.txt with all relevant details.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    line = (
+        f"{datetime.now().isoformat(timespec='seconds')}\t"
+        f"bin={bin_idx:04d}\tpre_rchi2={pre_rchi2:.6f}\tpost_rchi2={post_rchi2:.6f}\t"
+        f"scale={scale:.6f}\tnpts={npts}\tGP_used={int(bool(gp_used))}\t{context}\n"
+    )
+    with (out_dir / "rescale_summary.txt").open("a") as f:
+        f.write(line)
 
 
 ### Load in parameter file
@@ -53,6 +72,9 @@ try:
     print("\n...Clipping beyond integration %d (%d minutes)"%(last_integration,24*60*(time[-1]-time[last_integration])))
 except:
     last_integration = len(time)
+
+print('First integration: ',first_integration)
+print('Last integration: ',last_integration)
 
 time = time[first_integration:last_integration]
 
@@ -170,6 +192,7 @@ norm_inputs = bool(int(input_dict['normalise_inputs']))
 if norm_inputs:
     print('standardising model inputs...')
     systematics_model_inputs = np.array([(i-i.mean())/i.std() for i in model_inputs])
+    print('ndim: ',np.ndim(systematics_model_inputs),', size: ',np.size(systematics_model_inputs))
 else:
     systematics_model_inputs = np.array(model_inputs)
 
@@ -367,6 +390,8 @@ except:
     raise SystemError('Need to first generate limb darkening values before running this fitting.')
 
 # if not white_light_fit and not single_fit:
+print('u1: ', u1, ', wb: ',wb)
+
 u1 = np.atleast_1d(u1)[wb]
 u1_err = np.atleast_1d(u1_err)[wb]
 u2 = np.atleast_1d(u2)[wb]
@@ -422,6 +447,7 @@ if not use_kipping:
         d['u1'] = tmgp.Param(u1)
         if use_ld_prior:
             ld_prior['u1_prior'] = u1_err
+            print('u1_prior = ',u1_err)
 
     if ld_law != "linear":
         if FIX_U2:
@@ -449,14 +475,21 @@ if not use_kipping:
 else:
     print("\n - Using Kipping's parameterisation of quadratic limb darkening coefficients")
     # convert from u1, u2 into q1, q2 if using Kipping parameterisation
+    print("(Kipping) u1 and u2 before converting: ",u1,u2)
 
     q1 = (u1+u2)**2
     q2 = u1/(2*(u1+u2))
 
+    print("(Kipping) Converting from u1 and u2 to q1 and q2...")
+    print("(Kipping) q1 and q2 after conversion: ",q1,q2)
+
     # Note: I am not transforming the uncertainties here on purpose as I want the uncertainties to be read from LD_coefficients.dat to be == the q1 and q2 standard deviations.
     if use_ld_prior:
+        print("Using Kipping prior - I am not transforming the uncertainties here on purpose as I want the uncertainties to be read from LD_coefficients.dat to be == the q1 and q2 standard deviations.")
         ld_prior['u1_prior'] = u1_err
         ld_prior['u2_prior'] = u2_err
+        print('(Kipping) u1_prior = ',u1_err)
+        print('(Kipping) u2_prior = ',u2_err)
 
     d['u1'] = tmgp.Param(q1)
     d['u2'] = tmgp.Param(q2)
@@ -574,6 +607,7 @@ if clip_outliers and median_clip:
 ### Optionally optimise the transit model parameters using a cubic-in-time polynomial here to handle systematic noise here. We can also optionally use this fit to clip outliers instead of through the median clip
 # raise SystemExit
 
+print('Optimise Model = ',optimise_model)
 if optimise_model or clip_outliers and not median_clip:
 
     # Make a new dictionary and toy model where we don't include any GP parameters, these are optimised later
@@ -621,6 +655,7 @@ if optimise_model or clip_outliers and not median_clip:
 
 
     ### Generate starting model
+    print("\nGenerating starting model for clipping...")
     if median_clip:
         clip_model = tmgp.TransitModelGPPM(d_clip,red_noise_model_inputs,None,clipped_flux_error,clipped_time,kernel_priors_dict,white_noise_kernel,use_kipping,ld_prior,polynomial_orders_toy,ld_law,exp_ramp_used,exp_ramp_components,step_func_used)
     else:
@@ -633,6 +668,7 @@ if optimise_model or clip_outliers and not median_clip:
         dummy_error = flux_error
 
     # Now fit the model to get the clipped model
+    print("\nFitting transit model parameters for clipping...")
     if median_clip:
         try:
             fitted_clip_model,_,_ = clip_model.optimise_params(clipped_time,clipped_flux,clipped_flux_error,reset_starting_gp=False,contact1=contact1,contact4=contact4,full_model=True,sys_priors=sys_priors,LM_fit=True)
@@ -655,8 +691,8 @@ if optimise_model or clip_outliers and not median_clip:
         if step_func_used:
             initial_red_noise *= fitted_clip_model.step_function(time)
 
-
         initial_transit_model = fitted_clip_model.calc(time)/initial_red_noise
+        print('initial_red_noise',initial_red_noise)
 
     if white_light_fit:
         try:
@@ -668,6 +704,7 @@ if optimise_model or clip_outliers and not median_clip:
             pass
 
     ### Plot the results
+
     if clip_outliers and not median_clip:
         print('\nPlotting lsq fit for clipping using polynomial....')
     else:
@@ -682,6 +719,7 @@ if optimise_model or clip_outliers and not median_clip:
     if optimise_model:
 
         ### update starting transit model parameters with these optimised parameters
+        print('Optimise Model = ',optimise_model)
         print("...updating transit and (optionally) polynomial parameters with optimised values")
         for k,v in zip(d_clip.keys(),d_clip.values()):
             if k in d:
@@ -692,12 +730,21 @@ if optimise_model or clip_outliers and not median_clip:
             print("\nRescaling photometric uncertainties by %.3f to give rChi2 = 1"%np.sqrt(fitted_clip_model.reducedChisq(clipped_time,clipped_flux,clipped_flux_error)))
             clipped_flux_error = clipped_flux_error*np.sqrt(fitted_clip_model.reducedChisq(clipped_time,clipped_flux,clipped_flux_error))
             pickle.dump(clipped_flux_error,open('rescaled_errors_wb%s.pickle'%(str(wb+1).zfill(4)),'wb'))
+
+            pre = fitted_clip_model.reducedChisq(clipped_time, clipped_flux, clipped_flux_error)
+            scale = np.sqrt(pre)
+            post = fitted_clip_model.reducedChisq(clipped_time, clipped_flux, clipped_flux_error)
+            log_rescale(out_dir=".", bin_idx=wb+1, pre_rchi2=pre, post_rchi2=post, scale=scale,npts=len(clipped_flux), gp_used=False, context="median_clip=True")
+
         else:
             print("\nRescaling photometric uncertainties by %.3f to give rChi2 = 1"%np.sqrt(fitted_clip_model.reducedChisq(time,flux,flux_error)))
             flux_error = flux_error*np.sqrt(fitted_clip_model.reducedChisq(time,flux,flux_error))
             pickle.dump(flux_error,open('rescaled_errors_wb%s.pickle'%(str(wb+1).zfill(4)),'wb'))
-
-
+            pre = fitted_clip_model.reducedChisq(time, flux, flux_error)
+            scale = np.sqrt(pre)
+            post = fitted_clip_model.reducedChisq(time, flux, flux_error)
+            log_rescale(out_dir=".", bin_idx=wb+1, pre_rchi2=pre, post_rchi2=post, scale=scale,npts=len(flux), gp_used=False, context="median_clip=False")
+            
     if clip_outliers and not median_clip: # use the above to clip outliers, if we've not already clipped them with the median clipping above
         residuals_1 = flux - fitted_clip_model.calc(time)
         rms_1 = np.sqrt(np.mean(residuals_1**2))
@@ -834,6 +881,7 @@ if nstep != 0:
             else:
                 nstep_burn = 2000 # short burn in before we perform the auto correlation testing
 
+        print('At burn in stage: sys_priors = ',sys_priors)
         median_burn,upper_burn,lower_burn,burn_model = mc.run_emcee(starting_model,clipped_time,clipped_flux,clipped_flux_error,nwalk,nstep_burn,nthreads,burn=True,wavelength_bin=wb,sys_priors=sys_priors,typeII=False)
 
         # Update burn_model starting params with current params
@@ -846,11 +894,31 @@ if nstep != 0:
         if not GP_used:
             # we need to rescale the photometric uncertainties to give reduced chi2 = 1
             print("\nRescaling photometric uncertainties to give rChi2 = 1")
-            clipped_flux_error = clipped_flux_error*np.sqrt(burn_model.reducedChisq(clipped_time,clipped_flux,clipped_flux_error))
+
+            # compute & apply the rescaling once (and record it) - MG
+            rchi2_pre = burn_model.reducedChisq(clipped_time, clipped_flux, clipped_flux_error)
+            scale = np.sqrt(rchi2_pre)
+
+            print(f"\nRescaling photometric uncertainties by {scale:.3f} "
+                  f"(pre-rescale rChi2 = {rchi2_pre:.3f}) to give rChi2 ≈ 1")
+
+            # apply the rescaling
+            clipped_flux_error *= scale
+
+            # save the factor so we can find it later
+            with open(f"rescale_factor_wb{wb+1:04d}.txt", "w") as f:
+                f.write(f"{scale:.6f}\n")
+ 
+            # show the post-rescale rChi2 as a sanity check
+            rchi2_post = burn_model.reducedChisq(clipped_time, clipped_flux, clipped_flux_error)
+            print(f"reduced Chi2 following error rescaling = {rchi2_post:.3f}")
+
+            # plot/save as before
             if show_plots:
-                fig = pu.plot_single_model(burn_model,clipped_time,clipped_flux,clipped_flux_error,rebin_data=rebin_data,save_fig=False)
-            rchi2_rescaled = burn_model.reducedChisq(clipped_time,clipped_flux,clipped_flux_error)
-            print("reduced Chi2 following error rescaling = %.2f"%(rchi2_rescaled))
+                fig = pu.plot_single_model(burn_model, clipped_time, clipped_flux, clipped_flux_error, rebin_data=rebin_data, save_fig=False)
+        
+            # summary line
+            log_rescale(out_dir=".", bin_idx=wb+1, pre_rchi2=rchi2_pre, post_rchi2=rchi2_post,scale=scale, npts=len(clipped_flux), gp_used=False, context="optimise/burn")
             pickle.dump(clipped_flux_error,open('rescaled_errors_wb%s.pickle'%(str(wb+1).zfill(4)),'wb'))
 
         # Run production

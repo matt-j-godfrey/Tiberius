@@ -24,6 +24,17 @@ Halpha = 6562
 
 ###
 
+DEFAULT_FONT_SIZE = 18
+plt.rcParams.update(
+    {
+        'font.size': DEFAULT_FONT_SIZE,
+        'axes.labelsize': DEFAULT_FONT_SIZE,
+        'xtick.labelsize': DEFAULT_FONT_SIZE,
+        'ytick.labelsize': DEFAULT_FONT_SIZE,
+    }
+)
+
+
 def rebin(xbins,x,y,e=None,weighted=False,errors_from_rms=False):
 
     """A function to rebin time series flux and errors given bin locations as a function of time.
@@ -623,7 +634,7 @@ def simple_bin(flux,flux_error,ancillary_data,wvl_solution,bin_edges,weighted=Tr
     return np.array(binned_flux),np.array(binned_error),binned_ancillary
 
 
-def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin_centres=None,alkali=False,save_fig=False,ratio=True,xmin=None,xmax=None):
+def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin_centres=None,alkali=False,save_fig=False,ratio=True,xmin=None,xmax=None,telluric=False):
 
     """A function that plots the spectra of target and comparison and the ratio of these, along with bin boundaries and ability to plot telluric spectra.
 
@@ -637,6 +648,7 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
     alkali - True/False - use this if wanting to overplot vertical lines at the locations of Na & K. Default=True
     save_fig - True/False - use this if wanting to save the figure to file, saved as 'wavelength_bins.pdf'. Default=False
     ratio - True/False - use this if wanting to plot the ratio of star1/star2 to identify where residual features exist to avoid setting bin edges there. Default=True
+    telluric - True/False - use this if wanting to plot telluric spectra. Default=False
     xmin - set the minimum wavelength to be plotted. Default=None
     xmax - set the maximum wavelength to be plotted. Default=None
 
@@ -645,15 +657,23 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
     """
 
     if ratio:
-        plt.figure()
+        plt.figure(figsize=(12,8))
     else:
-        plt.figure(figsize=(7,4))
+        plt.figure(figsize=(12,8))
 
     if ratio:
         nplots = 2
     else:
         nplots = 1
 
+    if telluric:
+            path_to_EFOSC_utils = os.path.dirname(wc.__file__)
+            tell_table = np.loadtxt(path_to_EFOSC_utils + '/EFOSC_utils/TELLURICS/tellurics_halpha.dat')
+            tell_wvl = tell_table[:, 0]
+            tell_flux = tell_table[:, 1]
+            relevant_indices = ((tell_wvl >= wvl_solution[0]) & (tell_wvl <= wvl_solution[-1]))
+            tell_wvl = tell_wvl[relevant_indices]
+            tell_flux = tell_flux[relevant_indices]
 
     plt.subplot(nplots,1,1)
 
@@ -671,8 +691,8 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
             for t in bin_centres:
                 plt.text(t,0.2,t,rotation='vertical',ha='center')
 
-
-        plt.plot(wvl_solution,star1/star2)
+        ratio_s = star1 / star2
+        plt.plot(wvl_solution[~np.isnan(ratio_s)], ratio_s[~np.isnan(ratio_s)])
 
         if alkali:
 
@@ -686,8 +706,12 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
 
         if xmin is not None and xmax is not None:
             plt.xlim(xmin,xmax)
+            plt.ylim(0.9,1.5)
 
         plt.subplot(212)
+                
+        if telluric:
+            plt.plot(tell_wvl, tell_flux, color='k')
 
     if bin_edges is not None:
         for i in bin_edges:

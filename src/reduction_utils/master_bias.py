@@ -139,8 +139,8 @@ def combine_biases_2windows(bias_list,verbose=False):
                 plt.imshow(data_frame,vmin=np.median(data_frame)*0.99,vmax=np.median(data_frame)*1.01)
                 plt.colorbar()
                 if level == 1:
-	                plt.xlabel("X pixel")
-	                plt.ylabel("Y pixel")
+                    plt.xlabel("X pixel")
+                    plt.ylabel("Y pixel")
                 else:
                     plt.yticks(visible=False)
 

@@ -762,28 +762,32 @@ def resample_smoothly(reference_pixel_locations,measured_shifts,input_arrays,sig
         if not median:
 
             spline = US(frames[index],measured_shifts[:,i][index],s=spline_smoothing_factor)
-
-            plt.figure()
+            if verbose:
+                plt.figure()
+                plt.grid()
 
             if sigma_clip_outliers > 0:
 
                 spline_residuals = measured_shifts[:,i][index]-spline(frames[index])
                 keep_idx = ((spline_residuals <= sigma_clip_outliers*np.std(spline_residuals)) & (spline_residuals >= -sigma_clip_outliers*np.std(spline_residuals)))
                 spline = US(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],s=spline_smoothing_factor)
-
-                plt.plot(frames,measured_shifts[:,i],'r')
-                plt.plot(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],'k',label='measured shifts')
-                plt.plot(frames,spline(frames),label='spline',color='orange')
+                
+                if verbose:
+                    plt.plot(frames,measured_shifts[:,i],'r-o')
+                    plt.plot(frames[index][keep_idx],measured_shifts[:,i][index][keep_idx],'k-o',label='measured shifts')
+                    plt.plot(frames,spline(frames),label='spline',color='orange')
 
             else:
-                plt.plot(frames[index],measured_shifts[:,i][index],'k',label='measured shifts')
-                plt.plot(frames,spline(frames),label='spline',color='orange')
+                 if verbose:
+                    plt.plot(frames[index],measured_shifts[:,i][index],'k',label='measured shifts')
+                    plt.plot(frames,spline(frames),label='spline',color='orange')
 
-            plt.xlabel('Frame number')
-            plt.ylabel('Shift in pixels')
-            plt.title('Feature #%d'%(i+1))
-            plt.legend(loc='upper right')
-            plt.show()
+            if verbose:
+                plt.xlabel('Frame number')
+                plt.ylabel('Shift in pixels')
+                plt.title('Feature #%d'%(i+1))
+                plt.legend(loc='upper right')
+                plt.show()
 
             smooth_shifts.append(spline(frames))
 
@@ -822,15 +826,16 @@ def resample_smoothly(reference_pixel_locations,measured_shifts,input_arrays,sig
                  spline = US(frames[index][keep_idx],median_filter,s=spline_smoothing_factor)
                  median_filter = spline(frames)
 
-            plt.figure()
-            plt.plot(frames,measured_shifts[:,i],'r')
-            plt.plot(frames[index][keep_idx],measured_shifts[index][:,i][keep_idx],'k',label='measured shifts')
-            plt.plot(frames,median_filter,label='median filter',color='orange')
-            plt.xlabel('Frame number')
-            plt.ylabel('Shift in pixels')
-            plt.title('Feature #%d'%(i+1))
-            plt.legend(loc='upper right')
-            plt.show()
+            if verbose:
+                plt.figure()
+                plt.plot(frames,measured_shifts[:,i],'r')
+                plt.plot(frames[index][keep_idx],measured_shifts[index][:,i][keep_idx],'k',label='measured shifts')
+                plt.plot(frames,median_filter,label='median filter',color='orange')
+                plt.xlabel('Frame number')
+                plt.ylabel('Shift in pixels')
+                plt.title('Feature #%d'%(i+1))
+                plt.legend(loc='upper right')
+                plt.show()
 
             smooth_shifts.append(median_filter)
 

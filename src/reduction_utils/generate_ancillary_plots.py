@@ -24,7 +24,67 @@ parser.add_argument('-raw_lcs','--raw_lcs',help='Use to *NOT* plot the raw light
 parser.add_argument('-am_limit','--am_limit',help='Can set an airmass limit here such that only points below the limit are plotted, default=3',type=float,default=3.0)
 parser.add_argument('-single','--single',help='Use this argument to plot only the overall sky and FWHM for target, not comparison which is less confusing for paper plots',action='store_true')
 parser.add_argument('-s','--save_figure',help='Use if wanting to save the outputted figure, default is false',action='store_true')
+parser.add_argument('--pixel_scale',help='Native detector pixel scale in arcsec/pixel used to convert the saved FWHM values, default=0.253 (EFOSC)',type=float,default=0.253)
 args = parser.parse_args()
+
+# central plotting style settings that are easy to tweak when I want
+DEFAULT_FONT_SIZE = 18
+plt.rcParams.update(
+    {
+        'font.size': DEFAULT_FONT_SIZE,
+        'axes.labelsize': DEFAULT_FONT_SIZE,
+        'xtick.labelsize': DEFAULT_FONT_SIZE,
+        'ytick.labelsize': DEFAULT_FONT_SIZE,
+    }
+)
+
+def load_optional_pickle_or_txt(pickle_name, txt_name=None, default=None):
+    """Load a small scalar/array from a pickle or text file if it exists."""
+    try:
+        return pickle.load(open(pickle_name,'rb'))
+    except:
+        if txt_name is not None:
+            try:
+                return np.loadtxt(txt_name)
+            except:
+                pass
+    return default
+
+def export_fwhm_table(filename, time, mjd, fwhm1_pix, fwhm2_pix, effective_pixel_scale, native_pixel_scale, oversampling_factor):
+    """Write the plotted FWHM time series and simple per-exposure summary statistics."""
+    fwhm1_pix = np.asarray(fwhm1_pix, dtype=float)
+    if fwhm2_pix is None:
+        fwhm2_pix = np.full_like(fwhm1_pix, np.nan, dtype=float)
+    else:
+        fwhm2_pix = np.asarray(fwhm2_pix, dtype=float)
+
+    fwhm1_arcsec = fwhm1_pix * effective_pixel_scale
+    fwhm2_arcsec = fwhm2_pix * effective_pixel_scale
+    paired_arcsec = np.vstack((fwhm1_arcsec, fwhm2_arcsec)).T
+    mean_arcsec = np.nanmean(paired_arcsec, axis=1)
+    std_arcsec = np.nanstd(paired_arcsec, axis=1)
+
+    table = np.column_stack(
+        (
+            time,
+            mjd,
+            fwhm1_pix,
+            fwhm2_pix,
+            fwhm1_arcsec,
+            fwhm2_arcsec,
+            mean_arcsec,
+            std_arcsec,
+        )
+    )
+    header = (
+        "Per-exposure FWHM values used in generate_ancillary_plots.py\n"
+        "Saved FWHM values are in extraction pixels; arcsec conversion uses "
+        f"native_pixel_scale={native_pixel_scale:.6f} arcsec/pixel and "
+        f"oversampling_factor={float(oversampling_factor):.6f}, so "
+        f"effective_pixel_scale={effective_pixel_scale:.6f} arcsec/saved_pixel.\n"
+        "Columns: time_days mjd fwhm1_pix fwhm2_pix fwhm1_arcsec fwhm2_arcsec mean_arcsec std_arcsec"
+    )
+    np.savetxt(filename, table, fmt="%.10f", header=header)
 
 
 # Keep a running tally of how many subplots we want
@@ -85,8 +145,37 @@ try:
 	mjd = pickle.load(open('mjd_time.pickle','rb'))[:am_cut]
 	time = mjd - int(mjd[0])
 except:
-	time = pickle.load(open('obs_time_array.pickle','rb'))[:am_cut]
-	time = time - int(time[0])
+    try:
+        time = pickle.load(open('obs_time_array.pickle','rb'))[:am_cut]
+        time = time - int(time[0])
+    except:
+        time = pickle.load(open('time.pickle','rb'))[:am_cut]
+        time = time - int(time[0])
+
+oversampling_factor = load_optional_pickle_or_txt('oversampling_factor.pickle', 'oversampling_factor.txt', default=1)
+try:
+    oversampling_factor = float(np.asarray(oversampling_factor).reshape(-1)[0])
+except:
+    oversampling_factor = 1.0
+if oversampling_factor <= 0:
+    oversampling_factor = 1.0
+
+effective_pixel_scale = args.pixel_scale / oversampling_factor
+print('FWHM conversion = %.6f arcsec/native pixel / %.3f oversampling = %.6f arcsec/saved pixel'
+      %(args.pixel_scale, oversampling_factor, effective_pixel_scale))
+
+if fwhm is not None:
+    print('Exporting FWHM table to fwhm_timeseries.txt')
+    export_fwhm_table(
+        'fwhm_timeseries.txt',
+        time,
+        mjd,
+        fwhm,
+        fwhm2,
+        effective_pixel_scale,
+        args.pixel_scale,
+        oversampling_factor,
+    )
 
 s1 = pickle.load(open('star1_flux.pickle','rb'))[:am_cut]
 s2 = pickle.load(open('star2_flux.pickle','rb'))[:am_cut]
@@ -105,14 +194,16 @@ if args.raw_lcs:
 try:
     sky1 = pickle.load(open('sky1.pickle','rb'))[:am_cut]
     sky2 = pickle.load(open('sky2.pickle','rb'))[:am_cut]
-
     single_sky = True
-
     nsubplots += 1
 
 except:
-    sky1 = pickle.load(open('background_avg_star1.pickle','rb'))[:am_cut]
-    sky2 = pickle.load(open('background_avg_star2.pickle','rb'))[:am_cut]
+    try:
+        sky1 = pickle.load(open('background_avg_star1.pickle','rb'))[:am_cut]
+        sky2 = pickle.load(open('background_avg_star2.pickle','rb'))[:am_cut]
+    except:
+        sky1 = pickle.load(open('sky_avg_star1.pickle','rb'))[:am_cut]
+        sky2 = pickle.load(open('sky_avg_star2.pickle','rb'))[:am_cut]
 
     sky1_left = pickle.load(open('sky_left_star1.pickle','rb'))[:am_cut]
     sky1_right = pickle.load(open('sky_right_star1.pickle','rb'))[:am_cut]
@@ -139,14 +230,15 @@ rotation2 = np.array([x[100] - x[-100] for x in trace2])
 
 nsubplots += 1
 
-
-
-
-
 if args.model1 is None and args.model2 is None:
     print('Not plotting white light model fit')
     plot_model = False
-    white_light = np.loadtxt('white_light.txt')
+
+    try:
+        white_light = np.loadtxt('white_light.txt')
+    except:
+        white_light = np.loadtxt('../white_light.txt')
+
     wl_flux = white_light[:,1][:am_cut]
     wl_error = white_light[:,2][:am_cut]
 
@@ -245,11 +337,11 @@ panel += 1
 if fwhm is not None:
     axfwhm = plt.subplot(gs[panel])
     if not args.single:
-        axfwhm.plot(time,fwhm*0.253,'bx')
+        axfwhm.plot(time,fwhm*effective_pixel_scale,'bx')
     else:
-        axfwhm.plot(time,fwhm*0.253,'k.')
+         axfwhm.plot(time,fwhm*effective_pixel_scale,'k.')
     if fwhm2 is not None and not args.single:
-        axfwhm.plot(time,fwhm2*0.253,'r+')
+        axfwhm.plot(time,fwhm2*effective_pixel_scale,'r+')
 
 
     axfwhm.set_ylabel('FWHM \n(arcsec)')
@@ -293,8 +385,8 @@ if args.raw_lcs:
          raw_lc_2 = s2.sum(axis=1)
          ax_raw.set_ylabel('Normalised \nflux')
 
-    ax_raw.plot(time,raw_lc_1/np.median(raw_lc_1),'bx')
-    ax_raw.plot(time,raw_lc_2/np.median(raw_lc_2),'r+')
+    ax_raw.plot(time,raw_lc_1/np.nanmedian(raw_lc_1),'bx')
+    ax_raw.plot(time,raw_lc_2/np.nanmedian(raw_lc_2),'r+')
     plt.xticks(visible=False)
 
     lower_yr = ax_raw.get_ylim()[0] - 8*ax_raw.get_ylim()[0]/100.
@@ -322,7 +414,7 @@ if not args.single:
     ax_sky.plot(time,sky_plot1,'bx')#/np.median(sky1.sum(axis=1)),'bx')
     ax_sky.plot(time,sky_plot2,'r+')#/np.median(sky2.sum(axis=1)),'r+')
 else:
-    ax_sky.plot(time,sky_plot1/np.median(sky_plot1),'k.')
+    ax_sky.plot(time,sky_plot1/np.nanmedian(sky_plot1),'k.')
 plt.xticks(visible=False)
 
 lower_ysky = ax_sky.get_ylim()[0] - 8*ax_sky.get_ylim()[0]/100.

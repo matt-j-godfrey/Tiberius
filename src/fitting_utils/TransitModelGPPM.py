@@ -196,7 +196,7 @@ class TransitModelGPPM(object):
         self.batman_params.u = gamma                #limb darkening coefficients [u1, u2, ..,]
 
         if self.ld_law == "squareroot": # change to match Batman's naming
-            self.batman_params.limb_dark = "square-root"       #limb darkening model
+            self.batman_params.limb_dark = "squareroot"       #limb darkening model
         else:
             self.batman_params.limb_dark = self.ld_law
 

@@ -1,7 +1,7 @@
 #### Author of this code: James Kirk
 #### Contact: jameskirk@live.co.uk
 
-# from ldtk import LDPSetCreator, BoxcarFilter
+from ldtk import LDPSetCreator, BoxcarFilter
 import pickle
 import numpy as np
 import argparse
@@ -314,6 +314,9 @@ if not args.seq:
         print('Calculating coefficients...')
         coeffs,errors = exotic_ldcs([FeH,Teff,logg_star],instrument_mode,wavelength_centres,wvl_bin_full_width,args.ld_law,ld_model_dimensionality,ld_data_path)
 
+    if args.ld_law == "linear":
+        errors = errors[:, np.newaxis]
+
     u1,u1e = coeffs[:,0],errors[:,0]
     u1 = replace_negatives_with_median(u1)
 
@@ -414,9 +417,11 @@ else:
     plt.plot(wavelength_centres,u1,label="u1")
     plt.plot(wavelength_centres,u1_smoothed,label="u1_smoothed")
     plt.fill_between(wavelength_centres,u1_smoothed+u1e_smoothed,u1_smoothed-u1e_smoothed,color="gray",alpha=0.5)
-    plt.plot(wavelength_centres,u2,label="u2")
-    plt.plot(wavelength_centres,u2_smoothed,label="u2_smoothed")
-    plt.fill_between(wavelength_centres,u2_smoothed+u2e_smoothed,u2_smoothed-u2e_smoothed,color="gray",alpha=0.5)
+
+    if args.ld_law != "linear":
+        plt.plot(wavelength_centres,u2,label="u2")
+        plt.plot(wavelength_centres,u2_smoothed,label="u2_smoothed")
+        plt.fill_between(wavelength_centres,u2_smoothed+u2e_smoothed,u2_smoothed-u2e_smoothed,color="gray",alpha=0.5)
     plt.legend()
     plt.xlabel("Wavelength")
     plt.ylabel("Coefficient value")

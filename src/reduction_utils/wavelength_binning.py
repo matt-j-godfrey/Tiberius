@@ -180,7 +180,7 @@ def normalise_flux(flux,error,contact1,contact4,airmass=None,airmass_cut=2):
         cut_flux = flux
         cut_error = error
 
-    oot_flux = np.concatenate((cut_flux[:,0:contact1],cut_flux[:,contact4:]),axis=1)
+    oot_flux = np.concatenate((cut_flux[:,0:contact1],cut_flux[:,contact4+1:]),axis=1)
 
     try:
         median_oot = nan_median(oot_flux,axis=1)

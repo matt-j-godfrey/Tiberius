@@ -19,7 +19,7 @@ import warnings
 with warnings.catch_warnings():
     # This is to supress the warnings that are generated upon importing pysynphot and are only becuase we've not downloaded the calibration files - which are not needed by us
     warnings.filterwarnings("ignore", category=UserWarning)
-    # from synphot import SourceSpectrum, SpectralElement, Observation
+    from synphot import SourceSpectrum, SpectralElement, Observation
     from pysynphot import observation
     from pysynphot import spectrum
 

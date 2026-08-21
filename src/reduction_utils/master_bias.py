@@ -20,13 +20,16 @@ args = parser.parse_args()
 if args.instrument != 'EFOSC' and args.instrument != 'ACAM':
     raise NameError('Currently only set up to deal with ACAM or EFOSC data')
 
+def read_file_list(list_path):
+    with open(list_path) as f:
+        return [line.strip() for line in f if line.strip()]
 
 # Find how many windows we're dealing with
 if args.instrument == 'EFOSC':
     nwin = 1
 
 if args.instrument == 'ACAM':
-    test_file = np.loadtxt(args.biaslist,str)[0]
+    test_file = read_file_list(args.biaslist)[0]
     test = fits.open(test_file)
     nwin = len(test) - 1
 
@@ -34,7 +37,7 @@ if args.instrument == 'ACAM':
 
 def combine_biases_1window(bias_list,instrument,verbose=False,eyeball=False):
     """median combine biases which were taken with a single window"""
-    bias_files = np.loadtxt(args.biaslist,str)
+    bias_files = read_file_list(bias_list)
 
     bias_data = []
 
@@ -115,7 +118,7 @@ def combine_biases_1window(bias_list,instrument,verbose=False,eyeball=False):
 def combine_biases_2windows(bias_list,verbose=False):
     """median combine biases which were taken with two windows"""
 
-    bias_files = np.loadtxt(args.biaslist,str)
+    bias_files = read_file_list(bias_list)
 
     bias_data = [[],[]]
 

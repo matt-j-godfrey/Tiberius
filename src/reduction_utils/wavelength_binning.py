@@ -706,7 +706,7 @@ def plot_spectra(star1,star2,wvl_solution,wvl_solution_2=None,bin_edges=None,bin
 
         if xmin is not None and xmax is not None:
             plt.xlim(xmin,xmax)
-            plt.ylim(0.9,1.5)
+            plt.ylim(0.1,1.5)
 
         plt.subplot(212)
                 

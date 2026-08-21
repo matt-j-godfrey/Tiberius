@@ -117,7 +117,20 @@ def ld_initialise(Teff,Teff_err,logg,logg_err,Z,Z_err,wvl_centre,wvl_error,ld_un
         print('iib binning - using lowres')
         model_set += "-lowres"
 
-    sc = LDPSetCreator(teff=(Teff,Teff_err),logg=(logg,logg_err),z=(Z,Z_err),filters=filters,dataset=model_set)#,force_download=True)
+    # sc = LDPSetCreator(teff=(Teff,Teff_err),logg=(logg,logg_err),z=(Z,Z_err),filters=filters,dataset=model_set)#,force_download=True)
+
+    # LDTk's default is the optical ``vis-lowres`` grid, which stops at
+    # 2.6 microns.  JWST/G395 white-light passbands require the extended
+    # ``visir-lowres`` grid (supported to 5.5 microns).
+    model_set = "visir-lowres" if wvl_max / 10. > 2600 else "vis-lowres"
+    print("model_set = %s" % model_set)
+    sc = LDPSetCreator(
+        teff=(Teff,Teff_err),
+        logg=(logg,logg_err),
+        z=(Z,Z_err),
+        filters=filters,
+        dataset=model_set,
+    )
 
     ps = sc.create_profiles()
     ps.set_uncertainty_multiplier(ld_uncertainty_multiplier)

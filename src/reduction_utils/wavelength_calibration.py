@@ -36,10 +36,14 @@ def rebin_spec(wave, specin, wavnew):
     Returns:
     resampled_spectra - the 1D array of the resampled 1D spectrum/errors"""
 
-    spec = SourceSpectrum.from_array(wave=wave, flux=specin)
-    f = np.ones(len(wave))
-    filt = SpectralElement.from_array(wave, f, waveunits='angstrom')
-    obs = Observation(spec, filt, binset=wavnew, force='taper')
+    # spec = SourceSpectrum.from_array(wave=wave, flux=specin)
+    # f = np.ones(len(wave))
+    # filt = SpectralElement.from_array(wave, f, waveunits='angstrom')
+    # obs = Observation(spec, filt, binset=wavnew, force='taper')
+
+    spec = spectrum.ArraySourceSpectrum(wave=wave,flux=specin)
+    filt = spectrum.ArraySpectralElement(wave,np.ones(len(wave)),waveunits="angstrom")
+    obs = observation.Observation(spec,filt,binset=wavnew,force="taper")
 
     return obs.binflux
 
@@ -537,7 +541,7 @@ def plot_and_fit_regions(stellar_spectrum,wvl_input,guess_dict,verbose=False,wor
 
     plt.close('all')
     for i,l in enumerate(spectral_lines):
-
+        
         chunk = (wvl_input > guess_dict[l][0]) & (wvl_input < guess_dict[l][-1])
 
         y = stellar_spectrum[chunk]

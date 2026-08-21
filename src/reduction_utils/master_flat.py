@@ -25,7 +25,11 @@ args = parser.parse_args()
 if args.instrument != 'EFOSC' and args.instrument != 'ACAM':
     raise NameError('Currently only set up to deal with ACAM or EFOSC data')
 
-flats_files = np.loadtxt(args.flatslist,str)
+def read_file_list(list_path):
+    with open(list_path) as f:
+        return [line.strip() for line in f if line.strip()]
+
+flats_files = read_file_list(args.flatslist)
 
 master_bias_data = fits.open(args.bias_frame)[0].data
 

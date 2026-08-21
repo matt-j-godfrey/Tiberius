@@ -98,7 +98,7 @@ def find_cosmic_frames(spectra,ref_frame,clip=5,mad=False,ignore_edges=0,mask=No
             cosmic_frames.append(i)
             cosmic_pixels.append(np.where(~keep_index)[0])
 
-    return np.array(cosmic_frames),np.array(cosmic_pixels)
+    return np.array(cosmic_frames,dtype=int),np.array(cosmic_pixels,dtype=object)
 
 
 
@@ -167,7 +167,7 @@ def find_cosmic_frames_with_medfilt(data,box_width=7,sigma_clip=5,mask=None,sear
                 cosmic_pixels.append(np.array(sorted(cosmic)))
 
 
-    return np.array(sorted(set(cosmic_frames))),np.array(cosmic_pixels)
+    return np.array(sorted(set(cosmic_frames)),dtype=int),np.array(cosmic_pixels,dtype=object)
 
 
 def check_cosmic_frames(spectra,frame_array,cosmic_positions=None,single_plot=True):

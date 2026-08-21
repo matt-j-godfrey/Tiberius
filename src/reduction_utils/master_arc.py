@@ -18,15 +18,19 @@ args = parser.parse_args()
 if args.instrument not in ['EFOSC', 'ACAM']:
     raise NameError('Instrument must be either EFOSC or ACAM')
 
+def read_file_list(list_path):
+    with open(list_path) as f:
+        return [line.strip() for line in f if line.strip()]
+
 if args.instrument == 'EFOSC':
     nwin = 1
 else:
-    test_file = np.loadtxt(args.arclist, str)[0]
+    test_file = read_file_list(args.arclist)[0]
     test = fits.open(test_file)
     nwin = len(test) - 1
 
 def combine_arcs_1window(filelist, instrument, verbose=False, eyeball=False):
-    arc_files = np.loadtxt(filelist, str)
+    arc_files = read_file_list(filelist)
     arc_data = []
 
     if verbose or eyeball:
@@ -77,7 +81,7 @@ def combine_arcs_1window(filelist, instrument, verbose=False, eyeball=False):
     return np.median(arc_data, axis=0)
 
 def combine_arcs_2windows(filelist, verbose=False):
-    arc_files = np.loadtxt(filelist, str)
+    arc_files = read_file_list(filelist)
     arc_data = [[], []]
     if verbose:
         plt.figure()

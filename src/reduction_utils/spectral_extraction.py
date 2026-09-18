@@ -767,7 +767,8 @@ def extract_trace_flux(frame,trace,aperture_width,background_offset,background_w
                 error.append(np.sqrt(sum(row[aperture_left_hand_edge:aperture_right_hand_edge])/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + dark_current*(aperture_width/oversampling_factor)*exposure_time/3600.)) # raw_flux here takes into account noise from the source and noise from the sky, since this is before background subtraction
 
             elif "JWST" in instrument: # we're using the error frame
-                error.append(np.sqrt(np.sum((error_frame[i][aperture_left_hand_edge:aperture_right_hand_edge]/oversampling_factor)**2)))#/(oversampling_factor**2)))
+                # Interpolated subpixels are correlated, so divide the summed variance by the oversampling factor.
+                error.append(np.sqrt(np.sum(error_frame[i][aperture_left_hand_edge:aperture_right_hand_edge]**2)/oversampling_factor))
 
             else: # I'm assuming we're looking at ACAM/EFOSC data and we're including scintillation but not dark current
                 error.append(np.sqrt(sum(row[aperture_left_hand_edge:aperture_right_hand_edge])/oversampling_factor + (aperture_width/oversampling_factor)*readnoise**2 + scintillation**2))

@@ -122,7 +122,8 @@ def ld_initialise(Teff,Teff_err,logg,logg_err,Z,Z_err,wvl_centre,wvl_error,ld_un
     # LDTk's default is the optical ``vis-lowres`` grid, which stops at
     # 2.6 microns.  JWST/G395 white-light passbands require the extended
     # ``visir-lowres`` grid (supported to 5.5 microns).
-    model_set = "visir-lowres" if wvl_max / 10. > 2600 else "vis-lowres"
+    # model_set = "visir-lowres" if wvl_max / 10. > 2600 else "vis-lowres"
+    model_set = "visir-lowres" if max_wvl > 2600 else "vis-lowres"
     print("model_set = %s" % model_set)
     sc = LDPSetCreator(
         teff=(Teff,Teff_err),

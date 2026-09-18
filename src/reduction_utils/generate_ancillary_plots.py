@@ -28,7 +28,7 @@ parser.add_argument('--pixel_scale',help='Native detector pixel scale in arcsec/
 args = parser.parse_args()
 
 # central plotting style settings that are easy to tweak when I want
-DEFAULT_FONT_SIZE = 18
+DEFAULT_FONT_SIZE = 16
 plt.rcParams.update(
     {
         'font.size': DEFAULT_FONT_SIZE,
@@ -323,8 +323,7 @@ if y1 is not None:
 ax4 = plt.subplot(gs[panel])
 ax4.plot(time-int(time[0]),rotation1,'bx')
 ax4.plot(time-int(time[0]),rotation2,'r+')
-ax4.set_ylabel('$X_{4600A} - X_{8900A}$\n (pixels)')
-#ax4.set_ylabel('$X(100) - X(-100)$\n (pixels)')
+ax4.set_ylabel('Trace rotation\n(pixels)')
 lower_y4 = ax4.get_ylim()[0] - ax4.get_ylim()[0]/10.
 upper_y4 = ax4.get_ylim()[1] + ax4.get_ylim()[1]/10.
 ax4.set_ylim(lower_y4,upper_y4)

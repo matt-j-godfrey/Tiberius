@@ -1,0 +1,11 @@
+{
+  "/Users/u2257755/Library/CloudStorage/OneDrive-UniversityofWarwick/LRG_BEASTS/WASP-168/2023-01-25/reduction_testing_fixed_30_mask_FWHM/pickled_objects/wvl_bins_sestovic_sky_1sig_check/tables/transmission_spectrum.txt": "e77bdc64f57c757b94376f86472a775c83c3bd3c29e8dfe9e4976e87622dad52",
+  "/Users/u2257755/Library/CloudStorage/OneDrive-UniversityofWarwick/LRG_BEASTS/WASP-168/2023-01-25/reduction_testing_fixed_30_mask_FWHM/extraction_input.txt": "3c594e9795ba77338f5d16e06aa05c98fd740cd6c83cf4b6377fdd3af7732da3",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/EFOSC_utils/ATLAS/ckp00_6000.fits": "169117c6be4d758c982fe729526f65f8351ef49945be5a9e58a0a7aba6f00852",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/EFOSC_utils/ATLAS/ckp00_4750.fits": "4774d088b744f61684b4f678370340959618b0037ba9b5af61605f63e82623fc",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/other_tools/contamination_check_validation/DR2_passband.dat": "1dbb5280b42f266d6e18b6f332f726d44ec20f007c384a73c4edd7d30b17c1d8",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/other_tools/contamination_check_validation/EDR3_passband.dat": "46160d3b84dc0b78530d1ef3d18c0cf632fdaeb27876c0773c7a62033127f301",
+  "/Users/u2257755/Library/CloudStorage/OneDrive-UniversityofWarwick/LRG_BEASTS/WASP-168/2023-01-25/reduction_testing_fixed_30_mask_FWHM/pickled_objects/fwhm_timeseries.txt": "5de3cd96945047c7443cbdfbd19ee4a0bcf42167816cbf21636dcb99de1d383b",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/EFOSC_utils/PHOENIX/phoenixm00_6000.fits": "3205d53847889b3d3ee687adef044a624bcd79989a2e471b388834cbbd7334d2",
+  "/Users/u2257755/Documents/Tiberius-matt/Tiberius/src/reduction_utils/EFOSC_utils/PHOENIX/phoenixm00_4800.fits": "bbe30e3617449f0da4ab1f43aa83b2697ef064707ae2dac5fcf325d1a07cb6b8"
+}

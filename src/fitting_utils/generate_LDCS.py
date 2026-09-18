@@ -161,7 +161,9 @@ def single_ld_model(Teff,Teff_err,logg,logg_err,Z,Z_err,wvl_min,wvl_max,ld_uncer
     # Need to convert wavelengths from Angstroms to nm
     filters = [BoxcarFilter('a',wvl_min/10.,wvl_max/10.)]
 
-    sc = LDPSetCreator(teff=(Teff,Teff_err),logg=(logg,logg_err),z=(Z,Z_err),filters=filters)#,force_download=True)
+    # Use the extended LDTk grid for infrared passbands.
+    model_set = "visir-lowres" if wvl_max / 10. > 2600 else "vis-lowres"
+    sc = LDPSetCreator(teff=(Teff,Teff_err),logg=(logg,logg_err),z=(Z,Z_err),filters=filters,dataset=model_set)
 
     ps = sc.create_profiles()
     ps.set_uncertainty_multiplier(ld_uncertainty_multiplier)
